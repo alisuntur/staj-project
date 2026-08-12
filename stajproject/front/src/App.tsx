@@ -2,10 +2,11 @@ import { useState } from 'react'
 import EquipmentView from './EquipmentView'
 import FaultsView from './FaultsView'
 import MaintenanceView from './MaintenanceView'
+import TestsView from './TestsView'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5088'
 
-type ActiveView = 'faults' | 'maintenance' | 'equipment'
+type ActiveView = 'faults' | 'maintenance' | 'tests' | 'equipment'
 
 type AuthUser = {
   fullName: string
@@ -24,7 +25,7 @@ const navigationItems: { label: string; icon: string; view?: ActiveView }[] = [
   { label: 'Panel', icon: 'dashboard' },
   { label: 'Operasyonlar', icon: 'settings_suggest', view: 'faults' },
   { label: 'Bakım', icon: 'build', view: 'maintenance' },
-  { label: 'Testler', icon: 'biotech' },
+  { label: 'Testler', icon: 'biotech', view: 'tests' },
   { label: 'Varlık Yönetimi', icon: 'inventory_2', view: 'equipment' },
   { label: 'Raporlama', icon: 'assessment' },
   { label: 'Yönetim', icon: 'admin_panel_settings' },
@@ -149,7 +150,7 @@ function App() {
             <span className="text-lg font-bold text-black">O&amp;M Yönetimi</span>
             <div className="relative hidden md:block">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#76777D]">search</span>
-              <input className="h-9 w-72 border border-[#C6C6CD] bg-white pl-9 pr-3 text-[13px] outline-none focus:border-[#3755C3]" placeholder={activeView === 'faults' ? 'Arıza ara...' : activeView === 'maintenance' ? 'Bakım planı ara...' : 'Ekipman ara...'} readOnly />
+              <input className="h-9 w-72 border border-[#C6C6CD] bg-white pl-9 pr-3 text-[13px] outline-none focus:border-[#3755C3]" placeholder={activeView === 'faults' ? 'Arıza ara...' : activeView === 'maintenance' ? 'Bakım planı ara...' : activeView === 'tests' ? 'Test kaydı ara...' : 'Ekipman ara...'} readOnly />
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -164,6 +165,7 @@ function App() {
         <div key={activeView} className="page-transition">
           {activeView === 'faults' ? <FaultsView apiBaseUrl={API_BASE_URL} token={token} user={user} /> : null}
           {activeView === 'maintenance' ? <MaintenanceView apiBaseUrl={API_BASE_URL} token={token} /> : null}
+          {activeView === 'tests' ? <TestsView apiBaseUrl={API_BASE_URL} token={token} /> : null}
           {activeView === 'equipment' ? <EquipmentView apiBaseUrl={API_BASE_URL} token={token} /> : null}
         </div>
       </div>
