@@ -52,6 +52,32 @@ body {
   border: 2px solid #3755c3;
 }
 
+.report-input {
+  height: 40px;
+  width: 100%;
+  border: 1px solid #c6c6cd;
+  background: #ffffff;
+  padding: 0 8px;
+  font-size: 13px;
+  line-height: 20px;
+  color: #1b1b1d;
+  outline: none;
+  transition: border-color 120ms ease;
+}
+
+.report-input:focus {
+  border: 2px solid #3755c3;
+}
+
+.report-table-head {
+  background: #f6f3f5;
+  color: #45464d;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .module-font {
   font-family: "Manrope", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   letter-spacing: -0.01em;

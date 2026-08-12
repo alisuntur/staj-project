@@ -7,6 +7,7 @@ type AuthUser = {
 
 type FaultsViewProps = {
   apiBaseUrl: string
+  selectedFaultId?: string | null
   token: string
   user: AuthUser | null
 }
@@ -203,7 +204,7 @@ const defaultStatusForm: UpdateFaultStatusFormState = {
   waitingReason: '',
 }
 
-function FaultsView({ apiBaseUrl, token, user }: FaultsViewProps) {
+function FaultsView({ apiBaseUrl, selectedFaultId, token, user }: FaultsViewProps) {
   const [faultScreen, setFaultScreen] = useState<FaultScreen>('list')
   const [locations, setLocations] = useState<LocationItem[]>([])
   const [technicalSystems, setTechnicalSystems] = useState<TechnicalSystemItem[]>([])
@@ -295,10 +296,11 @@ function FaultsView({ apiBaseUrl, token, user }: FaultsViewProps) {
 
         setFaults(faultData)
 
-        if (faultData.length > 0) {
-          const detail = await initialRequest<FaultDetail>(`/api/faults/${faultData[0].id}`)
+        if (selectedFaultId) {
+          const detail = await initialRequest<FaultDetail>(`/api/faults/${selectedFaultId}`)
           if (!ignore) {
             setSelectedFault(detail)
+            setFaultScreen('detail')
             setStatusForm({ ...defaultStatusForm, status: getDefaultNextStatus(detail.status) })
           }
         } else {
@@ -324,7 +326,7 @@ function FaultsView({ apiBaseUrl, token, user }: FaultsViewProps) {
     return () => {
       ignore = true
     }
-  }, [apiBaseUrl, token, user?.role])
+  }, [apiBaseUrl, selectedFaultId, token, user?.role])
 
   async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
     const headers = new Headers(options.headers)
@@ -362,8 +364,9 @@ function FaultsView({ apiBaseUrl, token, user }: FaultsViewProps) {
       return data
     }
 
-    if (!selectedFault || !data.some((item) => item.id === selectedFault.id)) {
-      await handleSelectFault(data[0].id, false, false)
+    if (selectedFault && !data.some((item) => item.id === selectedFault.id)) {
+      setSelectedFault(null)
+      setFaultScreen('list')
     }
 
     return data
@@ -624,6 +627,9 @@ function FaultsView({ apiBaseUrl, token, user }: FaultsViewProps) {
       )
     }
 
+    const faultAge = formatFaultAge(selectedFault.createdAt, selectedFault.resolvedAt ?? selectedFault.closedAt)
+    const faultAgeTone = selectedFault.status === 'Resolved' || selectedFault.status === 'Closed' ? 'bg-[#DCFCE7] text-[#166534]' : selectedFault.priority === 'Critical' ? 'bg-[#FEE2E2] text-[#BA1A1A]' : 'bg-[#FFEDD5] text-[#C2410C]'
+
     return (
       <div className="grid gap-6 xl:grid-cols-[1fr_400px]">
         <div className="space-y-6">
@@ -658,9 +664,9 @@ function FaultsView({ apiBaseUrl, token, user }: FaultsViewProps) {
             </section>
             <section className="flex min-h-40 items-center justify-center border border-[#C6C6CD] bg-white p-6 text-center shadow-[0px_1px_3px_rgba(15,23,42,0.08)]">
               <div>
-                <p className="text-[12px] font-bold uppercase tracking-wide text-[#45464D]">Güncel Operasyon Göstergesi</p>
-                <p className="mt-3 font-mono text-5xl font-bold text-black">{selectedFault.priority === 'Critical' ? '1.2' : '99.9'}</p>
-                <p className={`mt-3 inline-flex px-3 py-1 text-sm ${selectedFault.priority === 'Critical' ? 'bg-[#FEE2E2] text-[#BA1A1A]' : 'bg-[#DCFCE7] text-[#166534]'}`}>{selectedFault.priority === 'Critical' ? 'Normal değerin altında' : 'Normal aralıkta'}</p>
+                <p className="text-[12px] font-bold uppercase tracking-wide text-[#45464D]">Arıza Yaşı</p>
+                <p className="mt-3 font-mono text-5xl font-bold text-black">{faultAge.value}</p>
+                <p className={`mt-3 inline-flex px-3 py-1 text-sm ${faultAgeTone}`}>{faultAge.label}</p>
               </div>
             </section>
           </div>
@@ -1011,6 +1017,22 @@ function formatDateTime(value?: string | null) {
   }).format(new Date(value))
 }
 
+function formatFaultAge(createdAt: string, endedAt?: string | null) {
+  const start = new Date(createdAt).getTime()
+  const end = endedAt ? new Date(endedAt).getTime() : Date.now()
+  const diffHours = Math.max(0, (end - start) / 36e5)
+
+  if (diffHours < 1) {
+    return { value: `${Math.max(1, Math.round(diffHours * 60))}`, label: endedAt ? 'Dakikada çözüldü' : 'Dakikadır açık' }
+  }
+
+  if (diffHours < 24) {
+    return { value: diffHours.toFixed(1), label: endedAt ? 'Saatte çözüldü' : 'Saattir açık' }
+  }
+
+  return { value: (diffHours / 24).toFixed(1), label: endedAt ? 'Günde çözüldü' : 'Gündür açık' }
+}
+
 function formatActionType(actionType: string) {
   const labels: Record<string, string> = {
     Created: 'Oluşturuldu',
@@ -1030,10 +1052,10 @@ function faultScreenTitle(screen: FaultScreen, faultNo?: string) {
   }
 
   if (screen === 'detail') {
-    return `5. Arıza Detay: ${faultNo ?? 'ARZ-2026-001'}`
+    return faultNo ? `Arıza Detay: ${faultNo}` : 'Arıza Detay'
   }
 
-  return '3. Arıza Listesi'
+  return 'Arıza Listesi'
 }
 
 function faultScreenDescription(screen: FaultScreen) {

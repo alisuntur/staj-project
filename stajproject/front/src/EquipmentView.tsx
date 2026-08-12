@@ -47,6 +47,95 @@ type EquipmentDetail = EquipmentListItem & {
   technicalSystem: TechnicalSystemItem
 }
 
+type EquipmentHistorySummary = {
+  faultCount: number
+  openFaultCount: number
+  maintenancePlanCount: number
+  completedMaintenanceCount: number
+  testRecordCount: number
+  failedTestCount: number
+  openShiftItemCount: number
+  lastActivityAt?: string | null
+}
+
+type EquipmentHistoryFault = {
+  id: string
+  faultNo: string
+  source: string
+  priority: string
+  status: string
+  description: string
+  createdByUserName: string
+  assignedToUserName?: string | null
+  createdAt: string
+  updatedAt?: string | null
+}
+
+type EquipmentHistoryMaintenancePlan = {
+  id: string
+  planNo: string
+  maintenanceType: string
+  plannedDate: string
+  frequency?: string | null
+  priority: string
+  status: string
+  responsibleUserName: string
+  startedAt?: string | null
+  completedAt?: string | null
+  description?: string | null
+}
+
+type EquipmentHistoryMaintenanceRecord = {
+  id: string
+  maintenancePlanId?: string | null
+  planNo?: string | null
+  maintenanceType: string
+  performedByUserName: string
+  startedAt?: string | null
+  completedAt: string
+  resultStatus: string
+  description: string
+}
+
+type EquipmentHistoryTestRecord = {
+  id: string
+  testPlanId?: string | null
+  testType: string
+  testDate: string
+  durationMinutes?: number | null
+  result: string
+  testedByUserName: string
+  abnormalCondition?: string | null
+  description?: string | null
+}
+
+type EquipmentHistoryShiftItem = {
+  id: string
+  shiftHandoverId: string
+  handoverNo: string
+  shiftType: string
+  shiftDate: string
+  itemType: string
+  title: string
+  description?: string | null
+  faultNo?: string | null
+  maintenancePlanNo?: string | null
+  priority?: string | null
+  isCompleted: boolean
+  createdAt: string
+  updatedAt?: string | null
+}
+
+type EquipmentHistory = {
+  equipment: EquipmentDetail
+  summary: EquipmentHistorySummary
+  faults: EquipmentHistoryFault[]
+  maintenancePlans: EquipmentHistoryMaintenancePlan[]
+  maintenanceRecords: EquipmentHistoryMaintenanceRecord[]
+  testRecords: EquipmentHistoryTestRecord[]
+  shiftItems: EquipmentHistoryShiftItem[]
+}
+
 type EquipmentFormState = {
   locationId: string
   technicalSystemId: string
@@ -70,8 +159,17 @@ type EquipmentFilters = {
 }
 
 type EquipmentScreen = 'list' | 'new' | 'detail' | 'locations' | 'locationDetail'
+type EquipmentDetailTab = 'overview' | 'faults' | 'maintenance' | 'tests' | 'shift'
 
 const equipmentStatuses: EquipmentStatus[] = ['Active', 'Passive', 'Maintenance', 'Faulted']
+
+const detailTabs: { id: EquipmentDetailTab; label: string }[] = [
+  { id: 'overview', label: 'Genel Bilgiler' },
+  { id: 'faults', label: 'Arıza Geçmişi' },
+  { id: 'maintenance', label: 'Bakım Geçmişi' },
+  { id: 'tests', label: 'Test Geçmişi' },
+  { id: 'shift', label: 'Vardiya Notları' },
+]
 
 const statusLabels: Record<EquipmentStatus, string> = {
   Active: 'Aktif',
@@ -85,6 +183,58 @@ const statusBadgeClasses: Record<EquipmentStatus, string> = {
   Passive: 'bg-[#E4E2E4] text-[#45464D]',
   Maintenance: 'bg-[#FEF08A] text-[#854D0E]',
   Faulted: 'bg-[#FEE2E2] text-[#BA1A1A]',
+}
+
+const priorityLabels: Record<string, string> = {
+  Low: 'Düşük',
+  Medium: 'Orta',
+  High: 'Yüksek',
+  Critical: 'Kritik',
+}
+
+const faultStatusLabels: Record<string, string> = {
+  New: 'Yeni',
+  Assigned: 'Atandı',
+  InReview: 'İncelemede',
+  InProgress: 'Devam Ediyor',
+  Waiting: 'Beklemede',
+  Resolved: 'Çözüldü',
+  Closed: 'Kapandı',
+}
+
+const maintenanceStatusLabels: Record<string, string> = {
+  Planned: 'Planlandı',
+  Started: 'Başladı',
+  Completed: 'Tamamlandı',
+  Delayed: 'Gecikti',
+  Cancelled: 'İptal',
+}
+
+const maintenanceResultLabels: Record<string, string> = {
+  Completed: 'Tamamlandı',
+  PartiallyCompleted: 'Kısmi Tamamlandı',
+  Failed: 'Başarısız',
+}
+
+const testResultLabels: Record<string, string> = {
+  Success: 'Başarılı',
+  Failed: 'Başarısız',
+  ConditionalSuccess: 'Şartlı Başarılı',
+  RetestRequired: 'Tekrar Test',
+}
+
+const shiftTypeLabels: Record<string, string> = {
+  Morning: 'Sabah',
+  Evening: 'Akşam',
+  Night: 'Gece',
+}
+
+const shiftItemTypeLabels: Record<string, string> = {
+  OpenFault: 'Açık Arıza',
+  OngoingWork: 'Devam Eden İş',
+  EquipmentToWatch: 'İzlenecek Ekipman',
+  PendingMaintenance: 'Bekleyen Bakım',
+  CriticalNote: 'Kritik Not',
 }
 
 const defaultFilters: EquipmentFilters = {
@@ -111,10 +261,12 @@ const emptyForm: EquipmentFormState = {
 
 function EquipmentView({ apiBaseUrl, token }: EquipmentViewProps) {
   const [screen, setScreen] = useState<EquipmentScreen>('list')
+  const [activeDetailTab, setActiveDetailTab] = useState<EquipmentDetailTab>('overview')
   const [locations, setLocations] = useState<LocationItem[]>([])
   const [technicalSystems, setTechnicalSystems] = useState<TechnicalSystemItem[]>([])
   const [equipment, setEquipment] = useState<EquipmentListItem[]>([])
   const [selectedEquipment, setSelectedEquipment] = useState<EquipmentDetail | null>(null)
+  const [equipmentHistory, setEquipmentHistory] = useState<EquipmentHistory | null>(null)
   const [selectedLocationId, setSelectedLocationId] = useState('')
   const [filters, setFilters] = useState<EquipmentFilters>(defaultFilters)
   const [form, setForm] = useState<EquipmentFormState>(emptyForm)
@@ -224,6 +376,7 @@ function EquipmentView({ apiBaseUrl, token }: EquipmentViewProps) {
 
     if (data.length === 0) {
       setSelectedEquipment(null)
+      setEquipmentHistory(null)
     }
 
     return data
@@ -277,7 +430,10 @@ function EquipmentView({ apiBaseUrl, token }: EquipmentViewProps) {
     setIsLoading(true)
     try {
       const detail = await apiRequest<EquipmentDetail>(`/api/equipment/${id}`)
+      const history = await apiRequest<EquipmentHistory>(`/api/equipment/${id}/history`)
       setSelectedEquipment(detail)
+      setEquipmentHistory(history)
+      setActiveDetailTab('overview')
       setEditingId(detail.id)
       setForm({
         locationId: detail.locationId,
@@ -352,8 +508,11 @@ function EquipmentView({ apiBaseUrl, token }: EquipmentViewProps) {
       const path = editingId ? `/api/equipment/${editingId}` : '/api/equipment'
       const method = editingId ? 'PUT' : 'POST'
       const detail = await apiRequest<EquipmentDetail>(path, { method, body })
+      const history = await apiRequest<EquipmentHistory>(`/api/equipment/${detail.id}/history`)
       await loadEquipment(filters, false)
       setSelectedEquipment(detail)
+      setEquipmentHistory(history)
+      setActiveDetailTab('overview')
       setEditingId(detail.id)
       setScreen('detail')
       setMessage(`${detail.code} ekipman kaydı ${method === 'POST' ? 'oluşturuldu' : 'güncellendi'}.`)
@@ -580,6 +739,23 @@ function EquipmentView({ apiBaseUrl, token }: EquipmentViewProps) {
       return <EmptyPanel title="Ekipman Detay" text="Listeden bir ekipman seçildiğinde detay ekranı burada açılır." />
     }
 
+    const history = equipmentHistory?.equipment.id === selectedEquipment.id ? equipmentHistory : null
+    const summary = history?.summary
+    const lastMaintenance = history?.maintenanceRecords[0]
+    const latestFault = history?.faults[0]
+    const showFaults = activeDetailTab === 'overview' || activeDetailTab === 'faults'
+    const showMaintenance = activeDetailTab === 'overview' || activeDetailTab === 'maintenance'
+    const showTests = activeDetailTab === 'overview' || activeDetailTab === 'tests'
+    const showShift = activeDetailTab === 'overview' || activeDetailTab === 'shift'
+    const hasOperationalHistory = Boolean(
+      history &&
+      (history.faults.length > 0 ||
+        history.maintenancePlans.length > 0 ||
+        history.maintenanceRecords.length > 0 ||
+        history.testRecords.length > 0 ||
+        history.shiftItems.length > 0),
+    )
+
     return (
       <>
         <section className="mb-6 border border-[#C6C6CD] bg-[#E4E2E4] p-7 shadow-[0px_1px_3px_rgba(15,23,42,0.08)]">
@@ -589,16 +765,147 @@ function EquipmentView({ apiBaseUrl, token }: EquipmentViewProps) {
               <div>
                 <div className="mb-2 flex flex-wrap gap-2"><span className="bg-[#F0EDEF] px-2 py-1 font-mono text-[13px] text-black">{selectedEquipment.code}</span><AssetStatusBadge status={selectedEquipment.status} /></div>
                 <h3 className="text-4xl font-bold tracking-tight text-black">{selectedEquipment.name}</h3>
-                <div className="mt-3 flex flex-wrap gap-4 text-[13px] text-[#45464D]"><span>{selectedEquipment.location.name}</span><span>Sistem: {selectedEquipment.technicalSystem.name}</span><span>Son Bakım: 12 Eki 2023</span></div>
+                <div className="mt-3 flex flex-wrap gap-4 text-[13px] text-[#45464D]"><span>{selectedEquipment.location.name}</span><span>Sistem: {selectedEquipment.technicalSystem.name}</span><span>Son Bakım: {lastMaintenance ? formatDate(lastMaintenance.completedAt) : '-'}</span></div>
               </div>
             </div>
             <div className="flex gap-2"><button className="border border-[#76777D] bg-white px-5 py-2 font-semibold" type="button" onClick={() => setScreen('new')}>Düzenle</button><button className="bg-black px-5 py-2 font-semibold text-white" type="button">İş Emri Oluştur</button></div>
           </div>
         </section>
-        <div className="mb-6 flex flex-wrap gap-6 border-b border-[#C6C6CD] text-lg font-medium text-[#45464D]"><span className="border-b-2 border-black pb-3 font-bold text-black">Genel Bilgiler</span><span>Arıza Geçmişi</span><span>Bakım Geçmişi</span><span>Test Geçmişi</span></div>
+        <div className="mb-6 flex flex-wrap gap-6 border-b border-[#C6C6CD] text-lg font-medium text-[#45464D]">
+          {detailTabs.map((tab) => (
+            <button
+              key={tab.id}
+              className={`${activeDetailTab === tab.id ? 'border-black font-bold text-black' : 'border-transparent text-[#45464D] hover:border-[#76777D] hover:text-black'} border-b-2 pb-3 transition-colors`}
+              type="button"
+              onClick={() => setActiveDetailTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
         <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
-          <section className="border border-[#C6C6CD] bg-white p-5"><AssetSectionTitle title="Teknik Özellikler" /><AssetSpecRow label="Marka/Model" value={`${selectedEquipment.brand ?? '-'} / ${selectedEquipment.model ?? '-'}`} /><AssetSpecRow label="Kapasite" value="750 kVA" /><AssetSpecRow label="Kurulum Tarihi" value={selectedEquipment.commissionedAt ?? '-'} /><AssetSpecRow label="Seri No" value={selectedEquipment.serialNo ?? '-'} /></section>
-          <section className="space-y-5"><div className="border border-[#C6C6CD] bg-white"><AssetSectionTitle padded title="Son Bakım Kayıtları" /><table className="w-full text-left text-sm"><tbody><AssetMiniRow cols={['12 Eki 2023', 'WO-8892', 'Periyodik (6 Aylık)', 'TAMAMLANDI']} /><AssetMiniRow cols={['14 Nis 2023', 'WO-7104', 'Arıza Müdahale', 'TAMAMLANDI']} /></tbody></table></div><div className="border border-[#C6C6CD] bg-white p-5"><AssetSectionTitle title="Son Arıza Logları" /><p className="text-lg font-bold text-black">Düşük Yağ Basıncı Uyarısı</p><p className="mt-1 text-sm text-[#45464D]">Sensör düşük basınç algıladı. Sistem otomatik olarak güvenli moda alındı.</p></div></section>
+          <aside className="space-y-5">
+            <section className="border border-[#C6C6CD] bg-white p-5">
+              <AssetSectionTitle title="Teknik Özellikler" />
+              <AssetSpecRow label="Marka/Model" value={`${selectedEquipment.brand ?? '-'} / ${selectedEquipment.model ?? '-'}`} />
+              <AssetSpecRow label="Kurulum Tarihi" value={selectedEquipment.commissionedAt ? formatDate(selectedEquipment.commissionedAt) : '-'} />
+              <AssetSpecRow label="Seri No" value={selectedEquipment.serialNo ?? '-'} />
+              <AssetSpecRow label="Aktiflik" value={selectedEquipment.isActive ? 'Aktif' : 'Pasif'} />
+            </section>
+            <section className="border border-[#C6C6CD] bg-[#FCF8FA] p-5">
+              <AssetSectionTitle title="Operasyon Özeti" />
+              <AssetSpecRow label="Açık Arıza" value={String(summary?.openFaultCount ?? 0)} />
+              <AssetSpecRow label="Toplam Arıza" value={String(summary?.faultCount ?? 0)} />
+              <AssetSpecRow label="Bakım Planı" value={String(summary?.maintenancePlanCount ?? 0)} />
+              <AssetSpecRow label="Tamamlanan Bakım" value={String(summary?.completedMaintenanceCount ?? 0)} />
+              <AssetSpecRow label="Test Kaydı" value={String(summary?.testRecordCount ?? 0)} />
+              <AssetSpecRow label="Başarısız/Tekrar Test" value={String(summary?.failedTestCount ?? 0)} />
+              <AssetSpecRow label="Açık Vardiya Maddesi" value={String(summary?.openShiftItemCount ?? 0)} />
+              <AssetSpecRow label="Son Aktivite" value={summary?.lastActivityAt ? formatDateTime(summary.lastActivityAt) : '-'} />
+            </section>
+          </aside>
+          <section className="space-y-5">
+            {history ? (
+              <>
+                <div className="grid gap-4 md:grid-cols-4">
+                  <HistoryMetric label="Açık Arıza" tone={summary && summary.openFaultCount > 0 ? 'danger' : 'default'} value={summary?.openFaultCount ?? 0} />
+                  <HistoryMetric label="Bakım Kaydı" value={summary?.completedMaintenanceCount ?? 0} />
+                  <HistoryMetric label="Test Kaydı" tone={summary && summary.failedTestCount > 0 ? 'warning' : 'default'} value={summary?.testRecordCount ?? 0} />
+                  <HistoryMetric label="Vardiya Açığı" tone={summary && summary.openShiftItemCount > 0 ? 'warning' : 'default'} value={summary?.openShiftItemCount ?? 0} />
+                </div>
+
+                {hasOperationalHistory ? null : <EmptyPanel title="Operasyon Geçmişi" text="Bu ekipman için arıza, bakım, test veya vardiya kaydı bulunamadı." />}
+
+                {showFaults && history.faults.length > 0 ? (
+                  <div className="border border-[#C6C6CD] bg-white">
+                    <AssetSectionTitle padded title="Arıza Geçmişi" />
+                    <div className="divide-y divide-[#C6C6CD]">
+                      {history.faults.slice(0, 5).map((fault) => (
+                        <HistoryRow
+                          key={fault.id}
+                          meta={`${fault.faultNo} • ${labelFor(faultStatusLabels, fault.status)} • ${labelFor(priorityLabels, fault.priority)}`}
+                          note={`Bildiren: ${fault.createdByUserName}${fault.assignedToUserName ? ` • Atanan: ${fault.assignedToUserName}` : ''}`}
+                          text={fault.description}
+                          time={formatDateTime(fault.updatedAt ?? fault.createdAt)}
+                          tone={fault.status === 'Closed' || fault.status === 'Resolved' ? 'default' : 'danger'}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {activeDetailTab === 'faults' && history.faults.length === 0 ? <EmptyPanel title="Arıza Geçmişi" text="Bu ekipman için arıza kaydı bulunamadı." /> : null}
+
+                {showMaintenance && (history.maintenanceRecords.length > 0 || history.maintenancePlans.length > 0) ? (
+                  <div className="border border-[#C6C6CD] bg-white">
+                    <AssetSectionTitle padded title="Bakım Geçmişi ve Planları" />
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm">
+                        <tbody>
+                          {history.maintenanceRecords.slice(0, 4).map((record) => (
+                            <AssetMiniRow key={record.id} cols={[formatDate(record.completedAt), record.planNo ?? 'Plansız', record.maintenanceType, labelFor(maintenanceResultLabels, record.resultStatus), record.performedByUserName]} />
+                          ))}
+                          {history.maintenancePlans.slice(0, 4).map((plan) => (
+                            <AssetMiniRow key={plan.id} cols={[formatDate(plan.plannedDate), plan.planNo, plan.maintenanceType, labelFor(maintenanceStatusLabels, plan.status), plan.responsibleUserName]} />
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null}
+
+                {activeDetailTab === 'maintenance' && history.maintenanceRecords.length === 0 && history.maintenancePlans.length === 0 ? <EmptyPanel title="Bakım Geçmişi" text="Bu ekipman için bakım planı veya bakım kaydı bulunamadı." /> : null}
+
+                {showTests && history.testRecords.length > 0 ? (
+                  <div className="border border-[#C6C6CD] bg-white">
+                    <AssetSectionTitle padded title="Test Geçmişi" />
+                    <div className="divide-y divide-[#C6C6CD]">
+                      {history.testRecords.slice(0, 5).map((record) => (
+                        <HistoryRow
+                          key={record.id}
+                          meta={`${record.testType} • ${labelFor(testResultLabels, record.result)}${record.durationMinutes ? ` • ${record.durationMinutes} dk` : ''}`}
+                          note={`Test eden: ${record.testedByUserName}${record.abnormalCondition ? ` • Anomali: ${record.abnormalCondition}` : ''}`}
+                          text={record.description ?? 'Açıklama girilmedi.'}
+                          time={formatDateTime(record.testDate)}
+                          tone={record.result === 'Failed' || record.result === 'RetestRequired' ? 'danger' : record.result === 'ConditionalSuccess' ? 'warning' : 'default'}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {activeDetailTab === 'tests' && history.testRecords.length === 0 ? <EmptyPanel title="Test Geçmişi" text="Bu ekipman için test kaydı bulunamadı." /> : null}
+
+                {showShift && history.shiftItems.length > 0 ? (
+                  <div className="border border-[#C6C6CD] bg-white">
+                    <AssetSectionTitle padded title="Vardiya Devir Maddeleri" />
+                    <div className="divide-y divide-[#C6C6CD]">
+                      {history.shiftItems.slice(0, 5).map((item) => (
+                        <HistoryRow
+                          key={item.id}
+                          meta={`${item.handoverNo} • ${labelFor(shiftTypeLabels, item.shiftType)} vardiyası • ${labelFor(shiftItemTypeLabels, item.itemType)}`}
+                          note={`${item.isCompleted ? 'Tamamlandı' : 'Açık'}${item.faultNo ? ` • Arıza: ${item.faultNo}` : ''}${item.maintenancePlanNo ? ` • Bakım: ${item.maintenancePlanNo}` : ''}`}
+                          text={item.description ?? item.title}
+                          time={formatDate(item.shiftDate)}
+                          tone={item.isCompleted ? 'default' : 'warning'}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {activeDetailTab === 'shift' && history.shiftItems.length === 0 ? <EmptyPanel title="Vardiya Notları" text="Bu ekipman için vardiya devir maddesi bulunamadı." /> : null}
+
+                {activeDetailTab === 'overview' ? <div className="border border-[#C6C6CD] bg-white p-5">
+                  <AssetSectionTitle title="Son Arıza Logu" />
+                  <p className="text-lg font-bold text-black">{latestFault?.description ?? 'Bu ekipman için arıza kaydı yok.'}</p>
+                  <p className="mt-1 text-sm text-[#45464D]">{latestFault ? `${latestFault.faultNo} • ${labelFor(faultStatusLabels, latestFault.status)} • ${formatDateTime(latestFault.createdAt)}` : 'Operasyon geçmişi yeni kayıtlarla otomatik güncellenir.'}</p>
+                </div> : null}
+              </>
+            ) : (
+              <EmptyPanel title="Operasyon Geçmişi" text="Ekipman geçmişi yükleniyor veya alınamadı." />
+            )}
+          </section>
         </div>
       </>
     )
@@ -824,6 +1131,30 @@ function AssetMiniRow({ cols }: { cols: string[] }) {
   return <tr className="border-t border-[#C6C6CD]">{cols.map((col) => <td key={col} className="p-3 text-sm text-[#45464D]">{col}</td>)}</tr>
 }
 
+function HistoryMetric({ label, tone = 'default', value }: { label: string; tone?: 'default' | 'danger' | 'warning'; value: number }) {
+  const toneClass = tone === 'danger' ? 'text-[#BA1A1A]' : tone === 'warning' ? 'text-[#854D0E]' : 'text-black'
+
+  return <div className="border border-[#C6C6CD] bg-[#FCF8FA] p-4"><p className="text-[11px] font-bold uppercase tracking-wide text-[#45464D]">{label}</p><p className={`mt-2 font-mono text-3xl font-bold ${toneClass}`}>{value}</p></div>
+}
+
+function HistoryRow({ meta, note, text, time, tone = 'default' }: { meta: string; note: string; text: string; time: string; tone?: 'default' | 'danger' | 'warning' }) {
+  const markerClass = tone === 'danger' ? 'bg-[#BA1A1A]' : tone === 'warning' ? 'bg-[#B45309]' : 'bg-[#3755C3]'
+
+  return (
+    <div className="grid gap-3 p-4 md:grid-cols-[120px_1fr]">
+      <div className="font-mono text-xs text-[#45464D]">{time}</div>
+      <div className="border-l border-[#C6C6CD] pl-4">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <span className={`h-2.5 w-2.5 ${markerClass}`} />
+          <span className="text-xs font-bold uppercase tracking-wide text-[#45464D]">{meta}</span>
+        </div>
+        <p className="text-sm font-semibold text-black">{text}</p>
+        <p className="mt-1 text-xs text-[#45464D]">{note}</p>
+      </div>
+    </div>
+  )
+}
+
 function LocationTreeRow({ active = false, critical = false, icon, name, onClick }: { active?: boolean; critical?: boolean; icon: string; name: string; onClick?: () => void }) {
   const className = `flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition-colors ${active ? 'bg-[#F6F3F5] text-black' : critical ? 'text-[#BA1A1A]' : 'text-[#45464D]'} ${onClick ? 'hover:bg-[#FCF8FA] hover:text-black' : ''}`
   const content = <><span className="flex items-center gap-2"><span className="material-symbols-outlined text-[17px]">{icon}</span>{name}</span>{critical ? <span className="bg-[#FEE2E2] px-2 py-1 text-xs text-[#BA1A1A]">2 Arıza</span> : null}</>
@@ -833,6 +1164,18 @@ function LocationTreeRow({ active = false, critical = false, icon, name, onClick
   }
 
   return <div className={className}>{content}</div>
+}
+
+function labelFor(labels: Record<string, string>, value: string) {
+  return labels[value] ?? value
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat('tr-TR', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value))
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat('tr-TR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
 }
 
 export default EquipmentView

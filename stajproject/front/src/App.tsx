@@ -1,13 +1,15 @@
 import { useState } from 'react'
+import DashboardView from './DashboardView'
 import EquipmentView from './EquipmentView'
 import FaultsView from './FaultsView'
 import MaintenanceView from './MaintenanceView'
+import ReportsView from './ReportsView'
 import ShiftsView from './ShiftsView'
 import TestsView from './TestsView'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5088'
 
-type ActiveView = 'faults' | 'maintenance' | 'tests' | 'shifts' | 'equipment'
+type ActiveView = 'dashboard' | 'faults' | 'maintenance' | 'tests' | 'shifts' | 'equipment' | 'reports'
 
 type AuthUser = {
   fullName: string
@@ -22,23 +24,25 @@ type LoginResponse = {
   user: AuthUser
 }
 
-const navigationItems: { label: string; icon: string; view?: ActiveView }[] = [
-  { label: 'Panel', icon: 'dashboard' },
+const navigationItems: { label: string; icon: string; view?: ActiveView; roles?: string[] }[] = [
+  { label: 'Panel', icon: 'dashboard', view: 'dashboard' },
   { label: 'Operasyonlar', icon: 'settings_suggest', view: 'faults' },
   { label: 'Vardiya Devir Teslim', icon: 'sync_alt', view: 'shifts' },
   { label: 'Bakım', icon: 'build', view: 'maintenance' },
   { label: 'Testler', icon: 'biotech', view: 'tests' },
   { label: 'Varlık Yönetimi', icon: 'inventory_2', view: 'equipment' },
-  { label: 'Raporlama', icon: 'assessment' },
+  { label: 'Raporlama', icon: 'assessment', view: 'reports', roles: ['Admin', 'Yönetici', 'Teknik Personel', 'Rapor Kullanıcısı'] },
   { label: 'Yönetim', icon: 'admin_panel_settings' },
 ]
 
 function App() {
-  const [activeView, setActiveView] = useState<ActiveView>('faults')
+  const [activeView, setActiveView] = useState<ActiveView>('dashboard')
   const [usernameOrEmail, setUsernameOrEmail] = useState('admin')
   const [password, setPassword] = useState('Demo123!')
   const [token, setToken] = useState('')
   const [user, setUser] = useState<AuthUser | null>(null)
+  const [selectedFaultId, setSelectedFaultId] = useState<string | null>(null)
+  const [selectedShiftHandoverNo, setSelectedShiftHandoverNo] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [message, setMessage] = useState('Hazır. Demo admin bilgileriyle giriş yapın.')
 
@@ -54,7 +58,7 @@ function App() {
 
       setToken(response.accessToken)
       setUser(response.user)
-      setActiveView('faults')
+      setActiveView('dashboard')
       setMessage(`${response.user.fullName} olarak giriş yapıldı.`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Giriş sırasında hata oluştu.')
@@ -78,6 +82,16 @@ function App() {
     }
 
     return payload as T
+  }
+
+  function openFaultDetail(faultId: string) {
+    setSelectedFaultId(faultId)
+    setActiveView('faults')
+  }
+
+  function openShiftDetail(handoverNo: string) {
+    setSelectedShiftHandoverNo(handoverNo)
+    setActiveView('shifts')
   }
 
   if (!token) {
@@ -116,7 +130,7 @@ function App() {
       <aside className="fixed left-0 top-0 z-50 hidden h-full w-[260px] flex-col bg-black text-white shadow-sm lg:flex">
         <BrandBlock />
         <nav className="flex-1 overflow-y-auto py-4">
-          {navigationItems.map((item) => {
+          {navigationItems.filter((item) => item.view && (!item.roles || (user && item.roles.includes(user.role)))).map((item) => {
             const isActive = item.view === activeView
 
             return (
@@ -133,6 +147,8 @@ function App() {
                 type="button"
                 onClick={() => {
                   if (item.view) {
+                    setSelectedFaultId(null)
+                    setSelectedShiftHandoverNo(null)
                     setActiveView(item.view)
                   }
                 }}
@@ -152,7 +168,7 @@ function App() {
             <span className="text-lg font-bold text-black">O&amp;M Yönetimi</span>
             <div className="relative hidden md:block">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#76777D]">search</span>
-              <input className="h-9 w-72 border border-[#C6C6CD] bg-white pl-9 pr-3 text-[13px] outline-none focus:border-[#3755C3]" placeholder={activeView === 'faults' ? 'Arıza ara...' : activeView === 'maintenance' ? 'Bakım planı ara...' : activeView === 'tests' ? 'Test kaydı ara...' : activeView === 'shifts' ? 'Vardiya devri ara...' : 'Ekipman ara...'} readOnly />
+              <input className="h-9 w-72 border border-[#C6C6CD] bg-white pl-9 pr-3 text-[13px] outline-none focus:border-[#3755C3]" placeholder={activeView === 'dashboard' ? 'Dashboard içinde ara...' : activeView === 'faults' ? 'Arıza ara...' : activeView === 'maintenance' ? 'Bakım planı ara...' : activeView === 'tests' ? 'Test kaydı ara...' : activeView === 'shifts' ? 'Vardiya devri ara...' : activeView === 'reports' ? 'Rapor filtrelerinde ara...' : 'Ekipman ara...'} readOnly />
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -165,11 +181,13 @@ function App() {
         </header>
 
         <div key={activeView} className="page-transition">
-          {activeView === 'faults' ? <FaultsView apiBaseUrl={API_BASE_URL} token={token} user={user} /> : null}
+          {activeView === 'dashboard' ? <DashboardView apiBaseUrl={API_BASE_URL} token={token} onOpenFault={openFaultDetail} onOpenShift={openShiftDetail} /> : null}
+          {activeView === 'faults' ? <FaultsView apiBaseUrl={API_BASE_URL} selectedFaultId={selectedFaultId} token={token} user={user} /> : null}
           {activeView === 'maintenance' ? <MaintenanceView apiBaseUrl={API_BASE_URL} token={token} /> : null}
           {activeView === 'tests' ? <TestsView apiBaseUrl={API_BASE_URL} token={token} /> : null}
-          {activeView === 'shifts' ? <ShiftsView apiBaseUrl={API_BASE_URL} token={token} /> : null}
+          {activeView === 'shifts' ? <ShiftsView apiBaseUrl={API_BASE_URL} selectedHandoverNo={selectedShiftHandoverNo} token={token} /> : null}
           {activeView === 'equipment' ? <EquipmentView apiBaseUrl={API_BASE_URL} token={token} /> : null}
+          {activeView === 'reports' ? <ReportsView apiBaseUrl={API_BASE_URL} token={token} /> : null}
         </div>
       </div>
     </main>

@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 
 type ShiftsViewProps = {
   apiBaseUrl: string
+  selectedHandoverNo?: string | null
   token: string
 }
 
@@ -189,7 +190,7 @@ const defaultFilters: ShiftFilters = {
   hasOpenItems: '',
 }
 
-function ShiftsView({ apiBaseUrl, token }: ShiftsViewProps) {
+function ShiftsView({ apiBaseUrl, selectedHandoverNo, token }: ShiftsViewProps) {
   const [screen, setScreen] = useState<ShiftScreen>('list')
   const [handovers, setHandovers] = useState<ShiftHandoverListItem[]>([])
   const [users, setUsers] = useState<UserListItem[]>([])
@@ -240,6 +241,16 @@ function ShiftsView({ apiBaseUrl, token }: ShiftsViewProps) {
           handoverFromUserId: current.handoverFromUserId || userData[0]?.id || '',
           handoverToUserId: current.handoverToUserId || userData[1]?.id || userData[0]?.id || '',
         }))
+        if (selectedHandoverNo) {
+          const selectedHandover = handoverData.find((item) => item.handoverNo === selectedHandoverNo)
+          if (selectedHandover) {
+            const detail = await initialRequest<ShiftHandoverDetail>(`/api/shifts/handovers/${selectedHandover.id}`)
+            if (!ignore) {
+              setSelectedHandover(detail)
+              setScreen('detail')
+            }
+          }
+        }
         setMessage(`${handoverData.length} vardiya devir teslim kaydı ve ${openItemData.openShiftItems.length} açık devir maddesi yüklendi.`)
       } catch (error) {
         if (!ignore) {
@@ -257,7 +268,7 @@ function ShiftsView({ apiBaseUrl, token }: ShiftsViewProps) {
     return () => {
       ignore = true
     }
-  }, [apiBaseUrl, token])
+  }, [apiBaseUrl, selectedHandoverNo, token])
 
   async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
     const headers = new Headers(options.headers)

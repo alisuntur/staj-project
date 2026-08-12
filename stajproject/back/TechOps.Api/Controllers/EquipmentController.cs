@@ -82,6 +82,88 @@ public sealed class EquipmentController(AppDbContext dbContext) : ControllerBase
         return equipment is null ? NotFound(new { message = "Ekipman bulunamadı." }) : Ok(MapDetail(equipment));
     }
 
+    [HttpGet("{id:guid}/history")]
+    public async Task<IActionResult> GetEquipmentHistory(Guid id, CancellationToken cancellationToken)
+    {
+        var equipment = await dbContext.Equipment
+            .Include(x => x.Location)
+            .Include(x => x.TechnicalSystem)
+            .SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+        if (equipment is null)
+        {
+            return NotFound(new { message = "Ekipman bulunamadı." });
+        }
+
+        var faults = await dbContext.Faults
+            .Include(x => x.CreatedByUser)
+            .Include(x => x.AssignedToUser)
+            .Where(x => x.EquipmentId == id)
+            .OrderByDescending(x => x.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        var maintenancePlans = await dbContext.MaintenancePlans
+            .Include(x => x.ResponsibleUser)
+            .Where(x => x.EquipmentId == id)
+            .OrderByDescending(x => x.PlannedDate)
+            .ThenBy(x => x.PlanNo)
+            .ToListAsync(cancellationToken);
+
+        var maintenanceRecords = await dbContext.MaintenanceRecords
+            .Include(x => x.MaintenancePlan)
+            .Include(x => x.PerformedByUser)
+            .Where(x => x.EquipmentId == id)
+            .OrderByDescending(x => x.CompletedAt)
+            .ToListAsync(cancellationToken);
+
+        var testRecords = await dbContext.TestRecords
+            .Include(x => x.TestedByUser)
+            .Where(x => x.EquipmentId == id)
+            .OrderByDescending(x => x.TestDate)
+            .ToListAsync(cancellationToken);
+
+        var shiftItems = await dbContext.ShiftItems
+            .Include(x => x.ShiftHandover)
+            .Include(x => x.Fault)
+            .Include(x => x.MaintenancePlan)
+            .Where(x => x.EquipmentId == id ||
+                (x.Fault != null && x.Fault.EquipmentId == id) ||
+                (x.MaintenancePlan != null && x.MaintenancePlan.EquipmentId == id))
+            .OrderBy(x => x.IsCompleted)
+            .ThenByDescending(x => x.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+        var activityDates = new List<DateTime?> { equipment.UpdatedAt, equipment.CreatedAt };
+        activityDates.AddRange(faults.Select(x => (DateTime?)(x.UpdatedAt ?? x.CreatedAt)));
+        activityDates.AddRange(maintenancePlans.Select(x => (DateTime?)(x.CompletedAt ?? x.StartedAt ?? x.UpdatedAt ?? x.CreatedAt)));
+        activityDates.AddRange(maintenanceRecords.Select(x => (DateTime?)(x.CompletedAt > x.CreatedAt ? x.CompletedAt : x.CreatedAt)));
+        activityDates.AddRange(testRecords.Select(x => (DateTime?)(x.TestDate > x.CreatedAt ? x.TestDate : x.CreatedAt)));
+        activityDates.AddRange(shiftItems.Select(x => (DateTime?)(x.UpdatedAt ?? x.CreatedAt)));
+
+        var history = new EquipmentHistoryDto
+        {
+            Equipment = MapDetail(equipment),
+            Summary = new EquipmentHistorySummaryDto
+            {
+                FaultCount = faults.Count,
+                OpenFaultCount = faults.Count(x => x.Status is not FaultStatus.Resolved and not FaultStatus.Closed),
+                MaintenancePlanCount = maintenancePlans.Count,
+                CompletedMaintenanceCount = maintenanceRecords.Count,
+                TestRecordCount = testRecords.Count,
+                FailedTestCount = testRecords.Count(x => x.Result is TestResult.Failed or TestResult.RetestRequired),
+                OpenShiftItemCount = shiftItems.Count(x => !x.IsCompleted),
+                LastActivityAt = activityDates.Where(x => x.HasValue).Max()
+            },
+            Faults = faults.Select(MapHistoryFault).ToList(),
+            MaintenancePlans = maintenancePlans.Select(MapHistoryMaintenancePlan).ToList(),
+            MaintenanceRecords = maintenanceRecords.Select(MapHistoryMaintenanceRecord).ToList(),
+            TestRecords = testRecords.Select(MapHistoryTestRecord).ToList(),
+            ShiftItems = shiftItems.Select(MapHistoryShiftItem).ToList()
+        };
+
+        return Ok(history);
+    }
+
     [HttpPost]
     public async Task<IActionResult> CreateEquipment(CreateEquipmentRequest request, CancellationToken cancellationToken)
     {
@@ -301,6 +383,79 @@ public sealed class EquipmentController(AppDbContext dbContext) : ControllerBase
             Description = equipment.TechnicalSystem.Description,
             IsActive = equipment.TechnicalSystem.IsActive
         }
+    };
+
+    private static EquipmentHistoryFaultDto MapHistoryFault(Fault fault) => new()
+    {
+        Id = fault.Id,
+        FaultNo = fault.FaultNo,
+        Source = fault.Source.ToString(),
+        Priority = fault.Priority.ToString(),
+        Status = fault.Status.ToString(),
+        Description = fault.Description,
+        CreatedByUserName = fault.CreatedByUser.FullName,
+        AssignedToUserName = fault.AssignedToUser?.FullName,
+        CreatedAt = fault.CreatedAt,
+        UpdatedAt = fault.UpdatedAt
+    };
+
+    private static EquipmentHistoryMaintenancePlanDto MapHistoryMaintenancePlan(MaintenancePlan plan) => new()
+    {
+        Id = plan.Id,
+        PlanNo = plan.PlanNo,
+        MaintenanceType = plan.MaintenanceType,
+        PlannedDate = plan.PlannedDate,
+        Frequency = plan.Frequency,
+        Priority = plan.Priority.ToString(),
+        Status = plan.Status.ToString(),
+        ResponsibleUserName = plan.ResponsibleUser.FullName,
+        StartedAt = plan.StartedAt,
+        CompletedAt = plan.CompletedAt,
+        Description = plan.Description
+    };
+
+    private static EquipmentHistoryMaintenanceRecordDto MapHistoryMaintenanceRecord(MaintenanceRecord record) => new()
+    {
+        Id = record.Id,
+        MaintenancePlanId = record.MaintenancePlanId,
+        PlanNo = record.MaintenancePlan?.PlanNo,
+        MaintenanceType = record.MaintenanceType,
+        PerformedByUserName = record.PerformedByUser.FullName,
+        StartedAt = record.StartedAt,
+        CompletedAt = record.CompletedAt,
+        ResultStatus = record.ResultStatus.ToString(),
+        Description = record.Description
+    };
+
+    private static EquipmentHistoryTestRecordDto MapHistoryTestRecord(TestRecord record) => new()
+    {
+        Id = record.Id,
+        TestPlanId = record.TestPlanId,
+        TestType = record.TestType,
+        TestDate = record.TestDate,
+        DurationMinutes = record.DurationMinutes,
+        Result = record.Result.ToString(),
+        TestedByUserName = record.TestedByUser.FullName,
+        AbnormalCondition = record.AbnormalCondition,
+        Description = record.Description
+    };
+
+    private static EquipmentHistoryShiftItemDto MapHistoryShiftItem(ShiftItem item) => new()
+    {
+        Id = item.Id,
+        ShiftHandoverId = item.ShiftHandoverId,
+        HandoverNo = item.ShiftHandover.HandoverNo,
+        ShiftType = item.ShiftHandover.ShiftType.ToString(),
+        ShiftDate = item.ShiftHandover.ShiftDate,
+        ItemType = item.ItemType.ToString(),
+        Title = item.Title,
+        Description = item.Description,
+        FaultNo = item.Fault?.FaultNo,
+        MaintenancePlanNo = item.MaintenancePlan?.PlanNo,
+        Priority = item.Priority?.ToString(),
+        IsCompleted = item.IsCompleted,
+        CreatedAt = item.CreatedAt,
+        UpdatedAt = item.UpdatedAt
     };
 
     private static string? NormalizeOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

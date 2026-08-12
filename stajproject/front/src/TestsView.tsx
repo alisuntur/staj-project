@@ -768,8 +768,8 @@ function createEmptyForm(): TestFormState {
 
 function screenTitle(screen: TestScreen) {
   const titles: Record<TestScreen, string> = {
-    history: '11. Test Geçmişi',
-    new: '12. Yeni Test Kaydı',
+    history: 'Test Geçmişi',
+    new: 'Yeni Test Kaydı',
     detail: 'Test Detay',
     equipmentHistory: 'Ekipman Test Geçmişi',
   }

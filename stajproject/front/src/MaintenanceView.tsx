@@ -801,9 +801,9 @@ function createEmptyCompleteForm(): CompleteFormState {
 
 function screenTitle(screen: MaintenanceScreen) {
   const titles: Record<MaintenanceScreen, string> = {
-    plans: '8. Bakım Planları',
+    plans: 'Bakım Planları',
     new: 'Yeni Bakım Planı Oluştur',
-    detail: '10. Bakım Detay',
+    detail: 'Bakım Detay',
     history: 'Bakım Geçmişi',
   }
 
