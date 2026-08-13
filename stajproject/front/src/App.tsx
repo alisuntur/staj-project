@@ -1,15 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import DashboardView from './DashboardView'
 import EquipmentView from './EquipmentView'
 import FaultsView from './FaultsView'
 import MaintenanceView from './MaintenanceView'
+import NotificationsView from './NotificationsView'
 import ReportsView from './ReportsView'
 import ShiftsView from './ShiftsView'
 import TestsView from './TestsView'
+import UserManagementView from './UserManagementView'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5088'
 
-type ActiveView = 'dashboard' | 'faults' | 'maintenance' | 'tests' | 'shifts' | 'equipment' | 'reports'
+type ActiveView = 'dashboard' | 'faults' | 'maintenance' | 'tests' | 'shifts' | 'equipment' | 'reports' | 'notifications' | 'users'
 
 type AuthUser = {
   fullName: string
@@ -24,7 +26,11 @@ type LoginResponse = {
   user: AuthUser
 }
 
-const navigationItems: { label: string; icon: string; view?: ActiveView; roles?: string[] }[] = [
+type NotificationUnreadCount = {
+  unreadCount: number
+}
+
+const navigationItems: { label: string; icon: string; view: ActiveView; roles?: string[] }[] = [
   { label: 'Panel', icon: 'dashboard', view: 'dashboard' },
   { label: 'Operasyonlar', icon: 'settings_suggest', view: 'faults' },
   { label: 'Vardiya Devir Teslim', icon: 'sync_alt', view: 'shifts' },
@@ -32,7 +38,8 @@ const navigationItems: { label: string; icon: string; view?: ActiveView; roles?:
   { label: 'Testler', icon: 'biotech', view: 'tests' },
   { label: 'Varlık Yönetimi', icon: 'inventory_2', view: 'equipment' },
   { label: 'Raporlama', icon: 'assessment', view: 'reports', roles: ['Admin', 'Yönetici', 'Teknik Personel', 'Rapor Kullanıcısı'] },
-  { label: 'Yönetim', icon: 'admin_panel_settings' },
+  { label: 'Bildirimler', icon: 'notifications', view: 'notifications' },
+  { label: 'Yönetim', icon: 'admin_panel_settings', view: 'users', roles: ['Admin'] },
 ]
 
 function App() {
@@ -43,8 +50,37 @@ function App() {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [selectedFaultId, setSelectedFaultId] = useState<string | null>(null)
   const [selectedShiftHandoverNo, setSelectedShiftHandoverNo] = useState<string | null>(null)
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [message, setMessage] = useState('Hazır. Demo admin bilgileriyle giriş yapın.')
+
+  useEffect(() => {
+    if (!token) {
+      setUnreadNotificationCount(0)
+      return
+    }
+
+    let ignore = false
+
+    async function loadUnreadCount() {
+      try {
+        const data = await appAuthenticatedRequest<NotificationUnreadCount>(API_BASE_URL, token, '/api/notifications/unread-count')
+        if (!ignore) {
+          setUnreadNotificationCount(data.unreadCount)
+        }
+      } catch {
+        if (!ignore) {
+          setUnreadNotificationCount(0)
+        }
+      }
+    }
+
+    void loadUnreadCount()
+
+    return () => {
+      ignore = true
+    }
+  }, [token])
 
   async function handleLogin() {
     setIsLoading(true)
@@ -94,6 +130,12 @@ function App() {
     setActiveView('shifts')
   }
 
+  function openNotifications() {
+    setSelectedFaultId(null)
+    setSelectedShiftHandoverNo(null)
+    setActiveView('notifications')
+  }
+
   if (!token) {
     return (
       <main className="min-h-screen bg-[#FCF8FA] text-[#1B1B1D]">
@@ -130,7 +172,7 @@ function App() {
       <aside className="fixed left-0 top-0 z-50 hidden h-full w-[260px] flex-col bg-black text-white shadow-sm lg:flex">
         <BrandBlock />
         <nav className="flex-1 overflow-y-auto py-4">
-          {navigationItems.filter((item) => item.view && (!item.roles || (user && item.roles.includes(user.role)))).map((item) => {
+          {navigationItems.filter((item) => !item.roles || (user && item.roles.includes(user.role))).map((item) => {
             const isActive = item.view === activeView
 
             return (
@@ -139,18 +181,13 @@ function App() {
                 className={`flex w-full items-center gap-3 px-5 py-3 text-left text-sm transition-colors ${
                   isActive
                     ? 'border-l-4 border-[#3755C3] bg-[#3F465C] text-white'
-                    : item.view
-                      ? 'text-[#7C839B] hover:bg-[#3F465C]/50 hover:text-white'
-                      : 'cursor-not-allowed text-[#3F465C]'
+                    : 'text-[#7C839B] hover:bg-[#3F465C]/50 hover:text-white'
                 }`}
-                disabled={!item.view}
                 type="button"
                 onClick={() => {
-                  if (item.view) {
-                    setSelectedFaultId(null)
-                    setSelectedShiftHandoverNo(null)
-                    setActiveView(item.view)
-                  }
+                  setSelectedFaultId(null)
+                  setSelectedShiftHandoverNo(null)
+                  setActiveView(item.view)
                 }}
               >
                 <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
@@ -168,13 +205,15 @@ function App() {
             <span className="text-lg font-bold text-black">O&amp;M Yönetimi</span>
             <div className="relative hidden md:block">
               <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#76777D]">search</span>
-              <input className="h-9 w-72 border border-[#C6C6CD] bg-white pl-9 pr-3 text-[13px] outline-none focus:border-[#3755C3]" placeholder={activeView === 'dashboard' ? 'Dashboard içinde ara...' : activeView === 'faults' ? 'Arıza ara...' : activeView === 'maintenance' ? 'Bakım planı ara...' : activeView === 'tests' ? 'Test kaydı ara...' : activeView === 'shifts' ? 'Vardiya devri ara...' : activeView === 'reports' ? 'Rapor filtrelerinde ara...' : 'Ekipman ara...'} readOnly />
+              <input className="h-9 w-72 border border-[#C6C6CD] bg-white pl-9 pr-3 text-[13px] outline-none focus:border-[#3755C3]" placeholder={activeView === 'dashboard' ? 'Dashboard içinde ara...' : activeView === 'faults' ? 'Arıza ara...' : activeView === 'maintenance' ? 'Bakım planı ara...' : activeView === 'tests' ? 'Test kaydı ara...' : activeView === 'shifts' ? 'Vardiya devri ara...' : activeView === 'reports' ? 'Rapor filtrelerinde ara...' : activeView === 'notifications' ? 'Bildirimlerde ara...' : activeView === 'users' ? 'Kullanıcı ara...' : 'Ekipman ara...'} readOnly />
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-[#45464D]">notifications</span>
-            <span className="material-symbols-outlined text-[#45464D]">history</span>
-            <span className="material-symbols-outlined text-[#45464D]">help</span>
+            <button className={`${activeView === 'notifications' ? 'border-[#3755C3] bg-[#DDE1FF] text-[#3755C3]' : 'border-[#C6C6CD] bg-white text-[#45464D] hover:bg-[#F6F3F5]'} relative flex h-9 items-center gap-2 border px-3 text-[13px] font-semibold transition-colors`} type="button" onClick={openNotifications}>
+              <span className="material-symbols-outlined text-[18px]">notifications</span>
+              <span className="hidden md:inline">Bildirimler</span>
+              {unreadNotificationCount > 0 ? <span className="absolute -right-2 -top-2 min-w-5 rounded-full bg-[#BA1A1A] px-1.5 py-0.5 text-center font-mono text-[11px] font-bold text-white">{unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}</span> : null}
+            </button>
             <div className="hidden text-right text-xs md:block"><p className="font-semibold text-black">{user?.fullName}</p><p className="text-[#45464D]">{user?.role}</p></div>
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#131B2E] text-white"><span className="material-symbols-outlined text-[18px]">person</span></div>
           </div>
@@ -188,6 +227,8 @@ function App() {
           {activeView === 'shifts' ? <ShiftsView apiBaseUrl={API_BASE_URL} selectedHandoverNo={selectedShiftHandoverNo} token={token} /> : null}
           {activeView === 'equipment' ? <EquipmentView apiBaseUrl={API_BASE_URL} token={token} /> : null}
           {activeView === 'reports' ? <ReportsView apiBaseUrl={API_BASE_URL} token={token} /> : null}
+          {activeView === 'notifications' ? <NotificationsView apiBaseUrl={API_BASE_URL} token={token} user={user} onUnreadCountChange={setUnreadNotificationCount} /> : null}
+          {activeView === 'users' ? <UserManagementView apiBaseUrl={API_BASE_URL} token={token} /> : null}
         </div>
       </div>
     </main>
@@ -203,6 +244,24 @@ function BrandBlock() {
       </div>
     </div>
   )
+}
+
+async function appAuthenticatedRequest<T>(apiBaseUrl: string, token: string, path: string, options: RequestInit = {}): Promise<T> {
+  const headers = new Headers(options.headers)
+  headers.set('Authorization', `Bearer ${token}`)
+  if (options.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+
+  const response = await fetch(`${apiBaseUrl}${path}`, { ...options, headers })
+  const text = await response.text()
+  const payload = text ? JSON.parse(text) : null
+
+  if (!response.ok) {
+    throw new Error((payload as { message?: string } | null)?.message ?? `API isteği başarısız: ${response.status}`)
+  }
+
+  return payload as T
 }
 
 export default App

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import ExecutiveReportDownload from './ExecutiveReportDownload'
 
 type DashboardViewProps = {
   apiBaseUrl: string
@@ -159,12 +160,6 @@ const trendDescriptions: Record<TrendPeriod, string> = {
   year: 'Son 5 yıllık kayıt yoğunluğu',
 }
 
-const trendPeriodLabels: Record<TrendPeriod, string> = {
-  week: 'Hafta',
-  month: 'Ay',
-  year: 'Yıl',
-}
-
 function DashboardView({ apiBaseUrl, token, onOpenFault, onOpenShift }: DashboardViewProps) {
   const [overview, setOverview] = useState<DashboardOverview>(emptyOverview)
   const [activePeriod, setActivePeriod] = useState<TrendPeriod>('month')
@@ -215,25 +210,6 @@ function DashboardView({ apiBaseUrl, token, onOpenFault, onOpenShift }: Dashboar
     }
   }
 
-  function handleDownloadReport() {
-    if (!overview.generatedAt) {
-      setMessage('Rapor oluşturmak için dashboard verilerinin yüklenmesi bekleniyor.')
-      return
-    }
-
-    const csv = buildDashboardReportCsv(overview, activePeriod)
-    const blob = new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `operasyon-dashboard-${activePeriod}-${new Date().toISOString().slice(0, 10)}.csv`
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
-    setMessage(`Rapor indirildi: ${formatDateTime(overview.generatedAt)}`)
-  }
-
   const maxTrend = Math.max(1, ...overview.monthlyFaultTrend.map((item) => item.value))
   const trendChartHeightClass = activePeriod === 'year' ? 'min-h-[230px]' : 'min-h-[300px]'
   const trendBarMaxHeight = activePeriod === 'year' ? 130 : 190
@@ -272,7 +248,7 @@ function DashboardView({ apiBaseUrl, token, onOpenFault, onOpenShift }: Dashboar
           <p className="mt-1 text-sm text-[#45464D]">{message}</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <button className="border border-[#3755C3] px-4 py-2 text-sm font-semibold text-[#3755C3] transition-colors hover:bg-[#DDE1FF] disabled:cursor-not-allowed disabled:opacity-50" disabled={!overview.generatedAt || isLoading} type="button" onClick={handleDownloadReport}>Rapor İndir</button>
+          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={!overview.generatedAt || isLoading} fileBaseName={`operasyon-dashboard-${activePeriod}`} label="Yönetici Raporu" path={`/api/exports/dashboard?period=${activePeriod}`} token={token} onMessage={setMessage} />
           <button className="border border-[#76777D] px-4 py-2 text-sm font-semibold text-[#1B1B1D] transition-colors hover:bg-[#F6F3F5]" disabled={isLoading} type="button" onClick={handleRefresh}>Yenile</button>
         </div>
       </div>
@@ -437,59 +413,6 @@ function periodButtonClass(isActive: boolean) {
   return isActive
     ? 'bg-black px-3 py-1 text-white disabled:cursor-not-allowed disabled:opacity-60'
     : 'bg-[#F6F3F5] px-3 py-1 text-[#45464D] transition-colors hover:bg-[#E4E2E4] disabled:cursor-not-allowed disabled:opacity-60'
-}
-
-function buildDashboardReportCsv(overview: DashboardOverview, period: TrendPeriod) {
-  const rows: string[][] = [
-    ['Operasyon Dashboard Raporu'],
-    ['Olusturma Zamani', formatDateTime(overview.generatedAt)],
-    ['Trend Periyodu', trendPeriodLabels[period]],
-    [],
-    ['KPI', 'Deger'],
-    ['Acik Arizalar', overview.kpis.openFaultCount.toString()],
-    ['Kritik Arizalar', overview.kpis.criticalFaultCount.toString()],
-    ['Bugun Bakim', overview.kpis.todayMaintenanceCount.toString()],
-    ['Bekleyen Isler', overview.kpis.pendingWorkCount.toString()],
-    ['Tamamlanan Testler', overview.kpis.monthlyCompletedTestCount.toString()],
-    ['Bakim Tamamlama Orani', `%${overview.kpis.maintenanceCompletionRate}`],
-    ['Test Basari Orani', `%${overview.kpis.testSuccessRate}`],
-    ['Arizali Ekipman', overview.kpis.faultedEquipmentCount.toString()],
-    [],
-    [`${trendTitles[period]}`, 'Kayit Sayisi'],
-    ...overview.monthlyFaultTrend.map((item) => [item.label, item.value.toString()]),
-    [],
-    ['Ariza Durumu', 'Kayit Sayisi'],
-    ...overview.faultStatusDistribution.map((item) => [labelFor(statusLabels, item.label), item.value.toString()]),
-    [],
-    ['Lokasyon', 'Ariza Sayisi'],
-    ...overview.faultsByLocation.map((item) => [item.label, item.value.toString()]),
-    [],
-    ['Son Arizalar', 'Ekipman', 'Lokasyon', 'Oncelik', 'Durum', 'Tarih'],
-    ...overview.recentFaults.map((fault) => [
-      fault.faultNo,
-      `${fault.equipmentCode} - ${fault.equipmentName}`,
-      fault.locationName,
-      labelFor(priorityLabels, fault.priority),
-      labelFor(statusLabels, fault.status),
-      formatDateTime(fault.updatedAt ?? fault.createdAt),
-    ]),
-    [],
-    ['Devreden Isler', 'Tur', 'Vardiya', 'Ekipman', 'Oncelik', 'Tarih'],
-    ...overview.openShiftItems.map((item) => [
-      `${item.handoverNo} - ${item.title}`,
-      labelFor(shiftItemTypeLabels, item.itemType),
-      labelFor(shiftTypeLabels, item.shiftType),
-      item.equipmentCode ? `${item.equipmentCode} - ${item.equipmentName ?? ''}` : '',
-      item.priority ? labelFor(priorityLabels, item.priority) : '',
-      formatDate(item.shiftDate),
-    ]),
-  ]
-
-  return rows.map((row) => row.map(csvCell).join(';')).join('\n')
-}
-
-function csvCell(value: string) {
-  return `"${value.replace(/"/g, '""')}"`
 }
 
 function KpiCard({ helper, icon, label, tone, value }: { helper: string; icon: string; label: string; tone: 'blue' | 'danger' | 'amber' | 'neutral' | 'navy'; value: number }) {

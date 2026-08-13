@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import ExecutiveReportDownload from './ExecutiveReportDownload'
 
 type ShiftsViewProps = {
   apiBaseUrl: string
@@ -535,6 +536,7 @@ function ShiftsView({ apiBaseUrl, selectedHandoverNo, token }: ShiftsViewProps) 
           <p className="mt-2 text-[15px] leading-5 text-[#45464D]">Açık işleri, kritik notları ve takip edilecek ekipmanları sonraki vardiyaya düzenli aktar.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isLoading} fileBaseName="vardiya-yonetici-raporu" label="Rapor" path="/api/exports/shifts" token={token} onMessage={setMessage} />
           <ShiftScreenButton active={screen === 'list'} label="Devir Teslim Listesi" onClick={() => setScreen('list')} />
           <ShiftScreenButton active={screen === 'new'} label="Yeni Devir Teslim" onClick={() => void startCreateHandover()} />
           <ShiftScreenButton active={screen === 'detail'} disabled={!selectedHandover} label="Vardiya Detay" onClick={() => setScreen('detail')} />

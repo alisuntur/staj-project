@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import ExecutiveReportDownload from './ExecutiveReportDownload'
 
 type EquipmentViewProps = {
   apiBaseUrl: string
@@ -523,25 +524,6 @@ function EquipmentView({ apiBaseUrl, token }: EquipmentViewProps) {
     }
   }
 
-  function exportEquipmentCsv() {
-    if (equipment.length === 0) {
-      setMessage('Dışa aktarılacak ekipman yok.')
-      return
-    }
-
-    const headers = ['Ekipman Kodu', 'Ad', 'Lokasyon', 'Sistem Türü', 'Durum', 'Aktif']
-    const rows = equipment.map((item) => [item.code, item.name, item.locationName, item.technicalSystemName, statusLabels[item.status], item.isActive ? 'Aktif' : 'Pasif'])
-    const csv = [headers, ...rows].map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(',')).join('\n')
-    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `ekipman-envanteri-${new Date().toISOString().slice(0, 10)}.csv`
-    link.click()
-    URL.revokeObjectURL(url)
-    setMessage(`${equipment.length} ekipman CSV olarak dışa aktarıldı.`)
-  }
-
   return (
     <section className="module-font mx-auto w-full max-w-[1600px] px-5 py-6 lg:px-6">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -577,10 +559,7 @@ function EquipmentView({ apiBaseUrl, token }: EquipmentViewProps) {
             <span className="material-symbols-outlined text-[18px]">refresh</span>
             Yenile
           </button>
-          <button className="flex items-center gap-2 border border-[#C6C6CD] bg-white px-4 py-2 text-[13px] text-[#1B1B1D] shadow-sm" type="button" onClick={exportEquipmentCsv}>
-            <span className="material-symbols-outlined text-[18px]">download</span>
-            Dışa Aktar
-          </button>
+          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isLoading} fileBaseName="ekipman-yonetici-raporu" label="Rapor" path="/api/exports/equipment" token={token} onMessage={setMessage} />
           <button className="flex items-center gap-2 bg-black px-4 py-2 text-[13px] font-semibold text-white shadow-sm" type="button" onClick={startCreateEquipment}>
             <span className="material-symbols-outlined text-[18px]">add</span>
             Yeni Ekipman Ekle

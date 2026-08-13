@@ -12,7 +12,19 @@ public static class SeedData
     public static readonly Guid OperatorRoleId = Guid.Parse("10000000-0000-0000-0000-000000000004");
     public static readonly Guid ReportRoleId = Guid.Parse("10000000-0000-0000-0000-000000000006");
 
-    private static readonly DateTime CreatedAt = new(2026, 8, 11, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime CreatedAt = new(2026, 7, 20, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly int[] PresentationDayOffsets =
+    [
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+        12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+        24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+        36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47,
+        48, 49, 50, 51, 52, 53,
+        35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46,
+        47, 48, 49, 50, 51, 52, 53,
+        24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52
+    ];
+    private static readonly int[] TechnicianUserNumbers = [3, 5, 6, 7, 8, 9, 10, 11, 12];
 
     private static readonly Guid TerminalAId = Guid.Parse("20000000-0000-0000-0000-000000000001");
     private static readonly Guid TerminalBId = Guid.Parse("20000000-0000-0000-0000-000000000002");
@@ -184,19 +196,20 @@ public static class SeedData
 
         faults.AddRange(new[]
         {
-            new Fault { Id = FaultId(10), FaultNo = "ARZ-2026-010", EquipmentId = EquipmentId(2), LocationId = LevelCenterId, TechnicalSystemId = UpsSystemId, CreatedByUserId = UserId(1), AssignedToUserId = UserId(3), Source = FaultSource.ScadaObservation, Priority = FaultPriority.Critical, Status = FaultStatus.InProgress, Description = "UPS bypass hattında kısa süreli alarm gözlendi. Yük transferi ve alarm eşiği takip edilecek.", AssignedAt = new DateTime(2026, 8, 12, 7, 30, 0, DateTimeKind.Utc), CreatedAt = new DateTime(2026, 8, 12, 7, 10, 0, DateTimeKind.Utc), UpdatedAt = new DateTime(2026, 8, 12, 7, 30, 0, DateTimeKind.Utc) },
-            new Fault { Id = FaultId(11), FaultNo = "ARZ-2026-011", EquipmentId = EquipmentId(3), LocationId = TerminalAId, TechnicalSystemId = HvacSystemId, CreatedByUserId = UserId(4), AssignedToUserId = UserId(3), Source = FaultSource.FieldObservation, Priority = FaultPriority.High, Status = FaultStatus.Assigned, Description = "AHU-T1-04 besleme havası sıcaklığı hedef aralığa düşmüyor. Filtre ve sensör kontrolleri takip edilecek.", AssignedAt = new DateTime(2026, 8, 12, 9, 15, 0, DateTimeKind.Utc), CreatedAt = new DateTime(2026, 8, 12, 9, 0, 0, DateTimeKind.Utc), UpdatedAt = new DateTime(2026, 8, 12, 9, 15, 0, DateTimeKind.Utc) }
+            new Fault { Id = FaultId(10), FaultNo = "ARZ-2026-010", EquipmentId = EquipmentId(2), LocationId = LevelCenterId, TechnicalSystemId = UpsSystemId, CreatedByUserId = UserId(1), AssignedToUserId = UserId(3), Source = FaultSource.ScadaObservation, Priority = FaultPriority.Critical, Status = FaultStatus.InProgress, Description = "UPS bypass hattında kısa süreli alarm gözlendi. Yük transferi ve alarm eşiği takip edilecek.", AssignedAt = new DateTime(2026, 9, 9, 7, 30, 0, DateTimeKind.Utc), CreatedAt = new DateTime(2026, 9, 9, 7, 10, 0, DateTimeKind.Utc), UpdatedAt = new DateTime(2026, 9, 9, 7, 30, 0, DateTimeKind.Utc) },
+            new Fault { Id = FaultId(11), FaultNo = "ARZ-2026-011", EquipmentId = EquipmentId(3), LocationId = TerminalAId, TechnicalSystemId = HvacSystemId, CreatedByUserId = UserId(4), AssignedToUserId = UserId(5), Source = FaultSource.FieldObservation, Priority = FaultPriority.High, Status = FaultStatus.Assigned, Description = "AHU-T1-04 besleme havası sıcaklığı hedef aralığa düşmüyor. Filtre ve sensör kontrolleri takip edilecek.", AssignedAt = new DateTime(2026, 9, 9, 9, 15, 0, DateTimeKind.Utc), CreatedAt = new DateTime(2026, 9, 9, 9, 0, 0, DateTimeKind.Utc), UpdatedAt = new DateTime(2026, 9, 9, 9, 15, 0, DateTimeKind.Utc) }
         });
 
         for (var i = 1001; i <= 1150; i++)
         {
             var equipmentItem = equipment[(i * 7) % equipment.Count];
-            var status = statuses[i % statuses.Length];
+            var isHistorical = IsHistoricalFaultSeed(i);
+            var status = isHistorical ? FaultStatus.Closed : statuses[i % statuses.Length];
             var priority = i % 13 == 0 ? FaultPriority.Critical : priorities[i % priorities.Length];
-            var createdAt = new DateTime(2026, 1, 1, 7, 0, 0, DateTimeKind.Utc).AddDays(i % 220).AddHours(i % 11).AddMinutes((i * 7) % 60);
+            var createdAt = FaultCreatedAtFor(i);
             var assignedAt = status == FaultStatus.New ? (DateTime?)null : createdAt.AddMinutes(20 + (i % 40));
-            var resolvedAt = status is FaultStatus.Resolved or FaultStatus.Closed ? createdAt.AddHours(1 + (i % 8)).AddMinutes(i % 45) : (DateTime?)null;
-            var closedAt = status == FaultStatus.Closed ? resolvedAt?.AddHours(1 + (i % 3)) : null;
+            var resolvedAt = status is FaultStatus.Resolved or FaultStatus.Closed ? createdAt.AddHours(1 + (i % 4)).AddMinutes(i % 45) : (DateTime?)null;
+            var closedAt = status == FaultStatus.Closed ? resolvedAt?.AddHours(1) : null;
             var updatedAt = closedAt ?? resolvedAt ?? assignedAt ?? createdAt;
 
             faults.Add(new Fault
@@ -207,9 +220,9 @@ public static class SeedData
                 LocationId = equipmentItem.LocationId,
                 TechnicalSystemId = equipmentItem.TechnicalSystemId,
                 CreatedByUserId = UserId(i % 3 == 0 ? 1 : 4),
-                AssignedToUserId = assignedAt.HasValue ? UserId(3) : null,
-                ResolvedByUserId = resolvedAt.HasValue ? UserId(3) : null,
-                ClosedByUserId = closedAt.HasValue ? UserId(2) : null,
+                AssignedToUserId = assignedAt.HasValue ? TechnicianUserIdFor(i) : null,
+                ResolvedByUserId = resolvedAt.HasValue ? TechnicianUserIdFor(i + 2) : null,
+                ClosedByUserId = closedAt.HasValue ? TechnicianUserIdFor(i + 4) : null,
                 Source = sources[i % sources.Length],
                 Priority = priority,
                 Status = status,
@@ -236,18 +249,18 @@ public static class SeedData
 
         plans.AddRange(new[]
         {
-            new MaintenancePlan { Id = MaintenancePlanId(1), PlanNo = "BKM-2026-001", EquipmentId = EquipmentId(1), ResponsibleUserId = UserId(3), CreatedByUserId = UserId(1), MaintenanceType = "6 Aylık", PlannedDate = new DateOnly(2026, 8, 20), Frequency = "6 Aylık", Priority = FaultPriority.Medium, Status = MaintenanceStatus.Planned, Description = "Jeneratör yakıt, yağ, filtre ve otomatik transfer panosu kontrolleri yapılacak.", CreatedAt = CreatedAt },
-            new MaintenancePlan { Id = MaintenancePlanId(2), PlanNo = "BKM-2026-002", EquipmentId = EquipmentId(3), ResponsibleUserId = UserId(3), CreatedByUserId = UserId(1), MaintenanceType = "Aylık", PlannedDate = new DateOnly(2026, 8, 11), Frequency = "Aylık", Priority = FaultPriority.High, Status = MaintenanceStatus.Started, Description = "HVAC ünitesi filtre, kayış, drenaj hattı ve sıcaklık sensörü kontrolleri yapılacak.", StartedAt = new DateTime(2026, 8, 11, 8, 30, 0, DateTimeKind.Utc), CreatedAt = CreatedAt, UpdatedAt = new DateTime(2026, 8, 11, 8, 30, 0, DateTimeKind.Utc) },
-            new MaintenancePlan { Id = MaintenancePlanId(3), PlanNo = "BKM-2026-003", EquipmentId = EquipmentId(2), ResponsibleUserId = UserId(2), CreatedByUserId = UserId(1), MaintenanceType = "Yıllık", PlannedDate = new DateOnly(2026, 8, 5), Frequency = "Yıllık", Priority = FaultPriority.Critical, Status = MaintenanceStatus.Planned, Description = "UPS batarya bloğu, bypass hattı ve yük aktarım testi planlandı.", CreatedAt = CreatedAt },
-            new MaintenancePlan { Id = MaintenancePlanId(4), PlanNo = "BKM-2026-004", EquipmentId = EquipmentId(4), ResponsibleUserId = UserId(3), CreatedByUserId = UserId(1), MaintenanceType = "3 Aylık", PlannedDate = new DateOnly(2026, 8, 1), Frequency = "3 Aylık", Priority = FaultPriority.Medium, Status = MaintenanceStatus.Completed, Description = "PLC panel klemens, güç kaynağı ve haberleşme modülü bakımı tamamlandı.", StartedAt = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc), CompletedAt = new DateTime(2026, 8, 1, 11, 20, 0, DateTimeKind.Utc), CreatedAt = CreatedAt, UpdatedAt = new DateTime(2026, 8, 1, 11, 20, 0, DateTimeKind.Utc) },
-            new MaintenancePlan { Id = MaintenancePlanId(5), PlanNo = "BKM-2026-005", EquipmentId = EquipmentId(1), ResponsibleUserId = UserId(3), CreatedByUserId = UserId(1), MaintenanceType = "Haftalık", PlannedDate = new DateOnly(2026, 7, 28), Frequency = "Haftalık", Priority = FaultPriority.Low, Status = MaintenanceStatus.Completed, Description = "Haftalık jeneratör saha kontrolü tamamlandı.", StartedAt = new DateTime(2026, 7, 28, 7, 45, 0, DateTimeKind.Utc), CompletedAt = new DateTime(2026, 7, 28, 8, 25, 0, DateTimeKind.Utc), CreatedAt = CreatedAt, UpdatedAt = new DateTime(2026, 7, 28, 8, 25, 0, DateTimeKind.Utc) }
+            new MaintenancePlan { Id = MaintenancePlanId(1), PlanNo = "BKM-2026-001", EquipmentId = EquipmentId(1), ResponsibleUserId = UserId(3), CreatedByUserId = UserId(1), MaintenanceType = "6 Aylık", PlannedDate = new DateOnly(2026, 9, 8), Frequency = "6 Aylık", Priority = FaultPriority.Medium, Status = MaintenanceStatus.Planned, Description = "Jeneratör yakıt, yağ, filtre ve otomatik transfer panosu kontrolleri yapılacak.", CreatedAt = CreatedAt },
+            new MaintenancePlan { Id = MaintenancePlanId(2), PlanNo = "BKM-2026-002", EquipmentId = EquipmentId(3), ResponsibleUserId = UserId(5), CreatedByUserId = UserId(1), MaintenanceType = "Aylık", PlannedDate = new DateOnly(2026, 9, 5), Frequency = "Aylık", Priority = FaultPriority.High, Status = MaintenanceStatus.Started, Description = "HVAC ünitesi filtre, kayış, drenaj hattı ve sıcaklık sensörü kontrolleri yapılacak.", StartedAt = new DateTime(2026, 9, 5, 8, 30, 0, DateTimeKind.Utc), CreatedAt = CreatedAt, UpdatedAt = new DateTime(2026, 9, 5, 8, 30, 0, DateTimeKind.Utc) },
+            new MaintenancePlan { Id = MaintenancePlanId(3), PlanNo = "BKM-2026-003", EquipmentId = EquipmentId(2), ResponsibleUserId = UserId(6), CreatedByUserId = UserId(1), MaintenanceType = "Yıllık", PlannedDate = new DateOnly(2026, 9, 9), Frequency = "Yıllık", Priority = FaultPriority.Critical, Status = MaintenanceStatus.Planned, Description = "UPS batarya bloğu, bypass hattı ve yük aktarım testi planlandı.", CreatedAt = CreatedAt },
+            new MaintenancePlan { Id = MaintenancePlanId(4), PlanNo = "BKM-2026-004", EquipmentId = EquipmentId(4), ResponsibleUserId = UserId(7), CreatedByUserId = UserId(1), MaintenanceType = "3 Aylık", PlannedDate = new DateOnly(2026, 8, 28), Frequency = "3 Aylık", Priority = FaultPriority.Medium, Status = MaintenanceStatus.Completed, Description = "PLC panel klemens, güç kaynağı ve haberleşme modülü bakımı tamamlandı.", StartedAt = new DateTime(2026, 8, 28, 9, 0, 0, DateTimeKind.Utc), CompletedAt = new DateTime(2026, 8, 28, 11, 20, 0, DateTimeKind.Utc), CreatedAt = CreatedAt, UpdatedAt = new DateTime(2026, 8, 28, 11, 20, 0, DateTimeKind.Utc) },
+            new MaintenancePlan { Id = MaintenancePlanId(5), PlanNo = "BKM-2026-005", EquipmentId = EquipmentId(1), ResponsibleUserId = UserId(8), CreatedByUserId = UserId(1), MaintenanceType = "Haftalık", PlannedDate = new DateOnly(2026, 8, 26), Frequency = "Haftalık", Priority = FaultPriority.Low, Status = MaintenanceStatus.Completed, Description = "Haftalık jeneratör saha kontrolü tamamlandı.", StartedAt = new DateTime(2026, 8, 26, 7, 45, 0, DateTimeKind.Utc), CompletedAt = new DateTime(2026, 8, 26, 8, 25, 0, DateTimeKind.Utc), CreatedAt = CreatedAt, UpdatedAt = new DateTime(2026, 8, 26, 8, 25, 0, DateTimeKind.Utc) }
         });
 
         for (var i = 1001; i <= 1130; i++)
         {
             var equipmentItem = equipment[(i * 5) % equipment.Count];
             var status = i % 5 == 0 ? MaintenanceStatus.Planned : i % 5 == 1 ? MaintenanceStatus.Started : MaintenanceStatus.Completed;
-            var plannedDate = new DateOnly(2026, 1, 1).AddDays(i % 230);
+            var plannedDate = PresentationDateOnly(i * 2);
             var startedAt = status is MaintenanceStatus.Started or MaintenanceStatus.Completed ? plannedDate.ToDateTime(new TimeOnly(8 + (i % 6), 0), DateTimeKind.Utc) : (DateTime?)null;
             var completedAt = status == MaintenanceStatus.Completed ? startedAt?.AddHours(1 + (i % 5)).AddMinutes((i * 3) % 45) : null;
 
@@ -256,7 +269,7 @@ public static class SeedData
                 Id = MaintenancePlanId(i),
                 PlanNo = $"BKM-2026-{i - 900:000}",
                 EquipmentId = equipmentItem.Id,
-                ResponsibleUserId = UserId(3),
+                ResponsibleUserId = TechnicianUserIdFor(i),
                 CreatedByUserId = UserId(2),
                 MaintenanceType = types[i % types.Length],
                 PlannedDate = plannedDate,
@@ -279,8 +292,8 @@ public static class SeedData
         var records = new List<MaintenanceRecord>();
         records.AddRange(new[]
         {
-            new MaintenanceRecord { Id = MaintenanceRecordId(1), MaintenancePlanId = MaintenancePlanId(4), EquipmentId = EquipmentId(4), PerformedByUserId = UserId(3), MaintenanceType = "3 Aylık", StartedAt = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc), CompletedAt = new DateTime(2026, 8, 1, 11, 20, 0, DateTimeKind.Utc), ResultStatus = MaintenanceResultStatus.Completed, Description = "PLC panel içi temizlik, klemens sıkılık kontrolü ve yedek güç kaynağı testi tamamlandı.", UsedMaterials = "Klemens etiketi, temizlik spreyi", ChecklistJson = "[{\"Text\":\"Fiziksel hasar kontrolü yapıldı.\",\"IsChecked\":true},{\"Text\":\"Bağlantı klemensleri sıkıldı.\",\"IsChecked\":true},{\"Text\":\"Haberleşme testi yapıldı.\",\"IsChecked\":true}]", CreatedAt = new DateTime(2026, 8, 1, 11, 20, 0, DateTimeKind.Utc) },
-            new MaintenanceRecord { Id = MaintenanceRecordId(2), MaintenancePlanId = MaintenancePlanId(5), EquipmentId = EquipmentId(1), PerformedByUserId = UserId(3), MaintenanceType = "Haftalık", StartedAt = new DateTime(2026, 7, 28, 7, 45, 0, DateTimeKind.Utc), CompletedAt = new DateTime(2026, 7, 28, 8, 25, 0, DateTimeKind.Utc), ResultStatus = MaintenanceResultStatus.Completed, Description = "Jeneratör çalışma testi, sıvı seviye kontrolleri ve görsel saha kontrolü tamamlandı.", UsedMaterials = "Kontrol formu", ChecklistJson = "[{\"Text\":\"Yağ ve yakıt seviyesi kontrol edildi.\",\"IsChecked\":true},{\"Text\":\"Sızıntı kontrolü yapıldı.\",\"IsChecked\":true},{\"Text\":\"Test çalıştırması tamamlandı.\",\"IsChecked\":true}]", CreatedAt = new DateTime(2026, 7, 28, 8, 25, 0, DateTimeKind.Utc) }
+            new MaintenanceRecord { Id = MaintenanceRecordId(1), MaintenancePlanId = MaintenancePlanId(4), EquipmentId = EquipmentId(4), PerformedByUserId = UserId(7), MaintenanceType = "3 Aylık", StartedAt = new DateTime(2026, 8, 28, 9, 0, 0, DateTimeKind.Utc), CompletedAt = new DateTime(2026, 8, 28, 11, 20, 0, DateTimeKind.Utc), ResultStatus = MaintenanceResultStatus.Completed, Description = "PLC panel içi temizlik, klemens sıkılık kontrolü ve yedek güç kaynağı testi tamamlandı.", UsedMaterials = "Klemens etiketi, temizlik spreyi", ChecklistJson = "[{\"Text\":\"Fiziksel hasar kontrolü yapıldı.\",\"IsChecked\":true},{\"Text\":\"Bağlantı klemensleri sıkıldı.\",\"IsChecked\":true},{\"Text\":\"Haberleşme testi yapıldı.\",\"IsChecked\":true}]", CreatedAt = new DateTime(2026, 8, 28, 11, 20, 0, DateTimeKind.Utc) },
+            new MaintenanceRecord { Id = MaintenanceRecordId(2), MaintenancePlanId = MaintenancePlanId(5), EquipmentId = EquipmentId(1), PerformedByUserId = UserId(8), MaintenanceType = "Haftalık", StartedAt = new DateTime(2026, 8, 26, 7, 45, 0, DateTimeKind.Utc), CompletedAt = new DateTime(2026, 8, 26, 8, 25, 0, DateTimeKind.Utc), ResultStatus = MaintenanceResultStatus.Completed, Description = "Jeneratör çalışma testi, sıvı seviye kontrolleri ve görsel saha kontrolü tamamlandı.", UsedMaterials = "Kontrol formu", ChecklistJson = "[{\"Text\":\"Yağ ve yakıt seviyesi kontrol edildi.\",\"IsChecked\":true},{\"Text\":\"Sızıntı kontrolü yapıldı.\",\"IsChecked\":true},{\"Text\":\"Test çalıştırması tamamlandı.\",\"IsChecked\":true}]", CreatedAt = new DateTime(2026, 8, 26, 8, 25, 0, DateTimeKind.Utc) }
         });
 
         var completedPlans = plans.Where(x => x.Id != MaintenancePlanId(4) && x.Id != MaintenancePlanId(5) && x.Status == MaintenanceStatus.Completed && x.CompletedAt.HasValue).ToList();
@@ -288,8 +301,8 @@ public static class SeedData
         for (var i = 0; i < 100; i++)
         {
             var plan = completedPlans[i % completedPlans.Count];
-            var cycleOffsetDays = (i / completedPlans.Count) * 7;
-            var completedAt = plan.CompletedAt!.Value.AddDays(cycleOffsetDays);
+            var cycleOffsetMinutes = (i / completedPlans.Count) * 30;
+            var completedAt = plan.CompletedAt!.Value.AddMinutes(cycleOffsetMinutes);
 
             records.Add(new MaintenanceRecord
             {
@@ -298,7 +311,7 @@ public static class SeedData
                 EquipmentId = plan.EquipmentId,
                 PerformedByUserId = plan.ResponsibleUserId,
                 MaintenanceType = plan.MaintenanceType,
-                StartedAt = plan.StartedAt?.AddDays(cycleOffsetDays),
+                StartedAt = plan.StartedAt?.AddMinutes(cycleOffsetMinutes),
                 CompletedAt = completedAt,
                 ResultStatus = i % 14 == 0 ? MaintenanceResultStatus.PartiallyCompleted : MaintenanceResultStatus.Completed,
                 Description = "Sentetik bakım kaydı: planlı bakım adımları tamamlandı ve operasyon değerleri kayıt altına alındı.",
@@ -319,24 +332,24 @@ public static class SeedData
 
         plans.AddRange(new[]
         {
-            new TestPlan { Id = TestPlanId(1), EquipmentId = EquipmentId(1), ResponsibleUserId = UserId(3), TestType = "Haftalık Jeneratör Testi", PlannedDate = new DateOnly(2026, 8, 3), Frequency = "Haftalık", Status = TestPlanStatus.Completed, Description = "Jeneratör otomatik çalışma ve transfer senaryosu doğrulaması.", CreatedAt = CreatedAt, UpdatedAt = new DateTime(2026, 8, 3, 8, 30, 0, DateTimeKind.Utc) },
-            new TestPlan { Id = TestPlanId(2), EquipmentId = EquipmentId(2), ResponsibleUserId = UserId(2), TestType = "UPS Yük Transfer Testi", PlannedDate = new DateOnly(2026, 8, 4), Frequency = "Aylık", Status = TestPlanStatus.Completed, Description = "UPS bypass ve yük transfer testi.", CreatedAt = CreatedAt, UpdatedAt = new DateTime(2026, 8, 4, 10, 10, 0, DateTimeKind.Utc) },
-            new TestPlan { Id = TestPlanId(3), EquipmentId = EquipmentId(3), ResponsibleUserId = UserId(3), TestType = "HVAC Çalışma Testi", PlannedDate = new DateOnly(2026, 8, 6), Frequency = "Aylık", Status = TestPlanStatus.Completed, Description = "AHU çalışma, sıcaklık ve drenaj testleri.", CreatedAt = CreatedAt, UpdatedAt = new DateTime(2026, 8, 6, 14, 5, 0, DateTimeKind.Utc) },
-            new TestPlan { Id = TestPlanId(4), EquipmentId = EquipmentId(4), ResponsibleUserId = UserId(3), TestType = "PLC I/O Testi", PlannedDate = new DateOnly(2026, 8, 7), Frequency = "3 Aylık", Status = TestPlanStatus.Completed, Description = "PLC panel giriş/çıkış sinyal doğrulaması.", CreatedAt = CreatedAt, UpdatedAt = new DateTime(2026, 8, 7, 11, 40, 0, DateTimeKind.Utc) },
-            new TestPlan { Id = TestPlanId(5), EquipmentId = EquipmentId(1), ResponsibleUserId = UserId(2), TestType = "Acil Durum Senaryo Testi", PlannedDate = new DateOnly(2026, 8, 9), Frequency = "Tek Seferlik", Status = TestPlanStatus.Completed, Description = "Acil durum yük devreye alma senaryosu.", CreatedAt = CreatedAt, UpdatedAt = new DateTime(2026, 8, 9, 9, 45, 0, DateTimeKind.Utc) },
-            new TestPlan { Id = TestPlanId(6), EquipmentId = EquipmentId(2), ResponsibleUserId = UserId(3), TestType = "UPS Batarya Otonomi Testi", PlannedDate = new DateOnly(2026, 8, 18), Frequency = "6 Aylık", Status = TestPlanStatus.Planned, Description = "UPS batarya otonomi süresi ve alarm eşikleri test edilecek.", CreatedAt = CreatedAt }
+            new TestPlan { Id = TestPlanId(1), EquipmentId = EquipmentId(1), ResponsibleUserId = UserId(3), TestType = "Haftalık Jeneratör Testi", PlannedDate = new DateOnly(2026, 8, 25), Frequency = "Haftalık", Status = TestPlanStatus.Completed, Description = "Jeneratör otomatik çalışma ve transfer senaryosu doğrulaması.", CreatedAt = CreatedAt, UpdatedAt = new DateTime(2026, 8, 25, 8, 30, 0, DateTimeKind.Utc) },
+            new TestPlan { Id = TestPlanId(2), EquipmentId = EquipmentId(2), ResponsibleUserId = UserId(5), TestType = "UPS Yük Transfer Testi", PlannedDate = new DateOnly(2026, 8, 28), Frequency = "Aylık", Status = TestPlanStatus.Completed, Description = "UPS bypass ve yük transfer testi.", CreatedAt = CreatedAt, UpdatedAt = new DateTime(2026, 8, 28, 10, 10, 0, DateTimeKind.Utc) },
+            new TestPlan { Id = TestPlanId(3), EquipmentId = EquipmentId(3), ResponsibleUserId = UserId(6), TestType = "HVAC Çalışma Testi", PlannedDate = new DateOnly(2026, 9, 2), Frequency = "Aylık", Status = TestPlanStatus.Completed, Description = "AHU çalışma, sıcaklık ve drenaj testleri.", CreatedAt = CreatedAt, UpdatedAt = new DateTime(2026, 9, 2, 14, 5, 0, DateTimeKind.Utc) },
+            new TestPlan { Id = TestPlanId(4), EquipmentId = EquipmentId(4), ResponsibleUserId = UserId(7), TestType = "PLC I/O Testi", PlannedDate = new DateOnly(2026, 9, 4), Frequency = "3 Aylık", Status = TestPlanStatus.Completed, Description = "PLC panel giriş/çıkış sinyal doğrulaması.", CreatedAt = CreatedAt, UpdatedAt = new DateTime(2026, 9, 4, 11, 40, 0, DateTimeKind.Utc) },
+            new TestPlan { Id = TestPlanId(5), EquipmentId = EquipmentId(1), ResponsibleUserId = UserId(8), TestType = "Acil Durum Senaryo Testi", PlannedDate = new DateOnly(2026, 9, 6), Frequency = "Tek Seferlik", Status = TestPlanStatus.Completed, Description = "Acil durum yük devreye alma senaryosu.", CreatedAt = CreatedAt, UpdatedAt = new DateTime(2026, 9, 6, 9, 45, 0, DateTimeKind.Utc) },
+            new TestPlan { Id = TestPlanId(6), EquipmentId = EquipmentId(2), ResponsibleUserId = UserId(9), TestType = "UPS Batarya Otonomi Testi", PlannedDate = new DateOnly(2026, 9, 10), Frequency = "6 Aylık", Status = TestPlanStatus.Planned, Description = "UPS batarya otonomi süresi ve alarm eşikleri test edilecek.", CreatedAt = CreatedAt }
         });
 
         for (var i = 1001; i <= 1120; i++)
         {
             var equipmentItem = equipment[(i * 3) % equipment.Count];
             var status = statuses[i % statuses.Length];
-            var plannedDate = new DateOnly(2026, 1, 1).AddDays(i % 220);
+            var plannedDate = PresentationDateOnly(i * 3);
             plans.Add(new TestPlan
             {
                 Id = TestPlanId(i),
                 EquipmentId = equipmentItem.Id,
-                ResponsibleUserId = UserId(3),
+                ResponsibleUserId = TechnicianUserIdFor(i),
                 TestType = testTypes[i % testTypes.Length],
                 PlannedDate = plannedDate,
                 Frequency = i % 4 == 0 ? "Aylık" : i % 4 == 1 ? "Haftalık" : i % 4 == 2 ? "3 Aylık" : "Tek Seferlik",
@@ -357,11 +370,11 @@ public static class SeedData
 
         records.AddRange(new[]
         {
-            new TestRecord { Id = TestRecordId(1), TestPlanId = TestPlanId(1), EquipmentId = EquipmentId(1), TestedByUserId = UserId(3), TestDate = new DateTime(2026, 8, 3, 8, 30, 0, DateTimeKind.Utc), TestType = "Haftalık Jeneratör Testi", DurationMinutes = 35, Result = TestResult.Success, Description = "Jeneratör otomatik olarak devreye girdi, gerilim ve frekans değerleri normal aralıkta izlendi.", CreatedAt = new DateTime(2026, 8, 3, 8, 30, 0, DateTimeKind.Utc) },
-            new TestRecord { Id = TestRecordId(2), TestPlanId = TestPlanId(2), EquipmentId = EquipmentId(2), TestedByUserId = UserId(2), TestDate = new DateTime(2026, 8, 4, 10, 10, 0, DateTimeKind.Utc), TestType = "UPS Yük Transfer Testi", DurationMinutes = 25, Result = TestResult.ConditionalSuccess, AbnormalCondition = "Transfer sonrası kısa süreli bypass alarmı izlendi.", Description = "Yük transferi tamamlandı ancak alarm eşiği bakımda yeniden değerlendirilecek.", CreatedAt = new DateTime(2026, 8, 4, 10, 10, 0, DateTimeKind.Utc) },
-            new TestRecord { Id = TestRecordId(3), TestPlanId = TestPlanId(3), EquipmentId = EquipmentId(3), TestedByUserId = UserId(3), TestDate = new DateTime(2026, 8, 6, 14, 5, 0, DateTimeKind.Utc), TestType = "HVAC Çalışma Testi", DurationMinutes = 40, Result = TestResult.Failed, AbnormalCondition = "Besleme havası sıcaklığı hedef aralığa düşmedi.", Description = "AHU soğutma performansı yetersiz. Bakım planı ile filtre ve sensör kontrolleri takip edilecek.", CreatedAt = new DateTime(2026, 8, 6, 14, 5, 0, DateTimeKind.Utc) },
-            new TestRecord { Id = TestRecordId(4), TestPlanId = TestPlanId(4), EquipmentId = EquipmentId(4), TestedByUserId = UserId(3), TestDate = new DateTime(2026, 8, 7, 11, 40, 0, DateTimeKind.Utc), TestType = "PLC I/O Testi", DurationMinutes = 55, Result = TestResult.Success, Description = "Tüm dijital giriş/çıkış noktaları SCADA üzerinden doğrulandı.", CreatedAt = new DateTime(2026, 8, 7, 11, 40, 0, DateTimeKind.Utc) },
-            new TestRecord { Id = TestRecordId(5), TestPlanId = TestPlanId(5), EquipmentId = EquipmentId(1), TestedByUserId = UserId(2), TestDate = new DateTime(2026, 8, 9, 9, 45, 0, DateTimeKind.Utc), TestType = "Acil Durum Senaryo Testi", DurationMinutes = 30, Result = TestResult.RetestRequired, AbnormalCondition = "Yük alma süresi kabul kriterine çok yakın ölçüldü.", Description = "Değer sınırda olduğu için tekrar test planlanacak.", CreatedAt = new DateTime(2026, 8, 9, 9, 45, 0, DateTimeKind.Utc) }
+            new TestRecord { Id = TestRecordId(1), TestPlanId = TestPlanId(1), EquipmentId = EquipmentId(1), TestedByUserId = UserId(3), TestDate = new DateTime(2026, 8, 25, 8, 30, 0, DateTimeKind.Utc), TestType = "Haftalık Jeneratör Testi", DurationMinutes = 35, Result = TestResult.Success, Description = "Jeneratör otomatik olarak devreye girdi, gerilim ve frekans değerleri normal aralıkta izlendi.", CreatedAt = new DateTime(2026, 8, 25, 8, 30, 0, DateTimeKind.Utc) },
+            new TestRecord { Id = TestRecordId(2), TestPlanId = TestPlanId(2), EquipmentId = EquipmentId(2), TestedByUserId = UserId(5), TestDate = new DateTime(2026, 8, 28, 10, 10, 0, DateTimeKind.Utc), TestType = "UPS Yük Transfer Testi", DurationMinutes = 25, Result = TestResult.ConditionalSuccess, AbnormalCondition = "Transfer sonrası kısa süreli bypass alarmı izlendi.", Description = "Yük transferi tamamlandı ancak alarm eşiği bakımda yeniden değerlendirilecek.", CreatedAt = new DateTime(2026, 8, 28, 10, 10, 0, DateTimeKind.Utc) },
+            new TestRecord { Id = TestRecordId(3), TestPlanId = TestPlanId(3), EquipmentId = EquipmentId(3), TestedByUserId = UserId(6), TestDate = new DateTime(2026, 9, 2, 14, 5, 0, DateTimeKind.Utc), TestType = "HVAC Çalışma Testi", DurationMinutes = 40, Result = TestResult.Failed, AbnormalCondition = "Besleme havası sıcaklığı hedef aralığa düşmedi.", Description = "AHU soğutma performansı yetersiz. Bakım planı ile filtre ve sensör kontrolleri takip edilecek.", CreatedAt = new DateTime(2026, 9, 2, 14, 5, 0, DateTimeKind.Utc) },
+            new TestRecord { Id = TestRecordId(4), TestPlanId = TestPlanId(4), EquipmentId = EquipmentId(4), TestedByUserId = UserId(7), TestDate = new DateTime(2026, 9, 4, 11, 40, 0, DateTimeKind.Utc), TestType = "PLC I/O Testi", DurationMinutes = 55, Result = TestResult.Success, Description = "Tüm dijital giriş/çıkış noktaları SCADA üzerinden doğrulandı.", CreatedAt = new DateTime(2026, 9, 4, 11, 40, 0, DateTimeKind.Utc) },
+            new TestRecord { Id = TestRecordId(5), TestPlanId = TestPlanId(5), EquipmentId = EquipmentId(1), TestedByUserId = UserId(8), TestDate = new DateTime(2026, 9, 6, 9, 45, 0, DateTimeKind.Utc), TestType = "Acil Durum Senaryo Testi", DurationMinutes = 30, Result = TestResult.RetestRequired, AbnormalCondition = "Yük alma süresi kabul kriterine çok yakın ölçüldü.", Description = "Değer sınırda olduğu için tekrar test planlanacak.", CreatedAt = new DateTime(2026, 9, 6, 9, 45, 0, DateTimeKind.Utc) }
         });
 
         for (var i = 1001; i <= 1110; i++)
@@ -374,7 +387,7 @@ public static class SeedData
                 Id = TestRecordId(i),
                 TestPlanId = plan.Id,
                 EquipmentId = plan.EquipmentId,
-                TestedByUserId = UserId(3),
+                TestedByUserId = TechnicianUserIdFor(i),
                 TestDate = testDate,
                 TestType = plan.TestType,
                 DurationMinutes = 20 + (i % 70),
@@ -396,14 +409,14 @@ public static class SeedData
 
         handovers.AddRange(new[]
         {
-            new ShiftHandover { Id = ShiftHandoverId(1), HandoverNo = "VDT-2026-001", ShiftType = ShiftType.Morning, ShiftDate = new DateOnly(2026, 8, 12), HandoverFromUserId = UserId(3), HandoverToUserId = UserId(2), Summary = "Gece vardiyasından devralınan UPS alarmı ve bekleyen bakım faaliyetleri sabah vardiyasına aktarıldı.", CriticalNotes = "Level Merkez UPS alarm eşiği ve yük transfer davranışı yakından izlenecek.", CreatedAt = new DateTime(2026, 8, 12, 8, 0, 0, DateTimeKind.Utc) },
-            new ShiftHandover { Id = ShiftHandoverId(2), HandoverNo = "VDT-2026-002", ShiftType = ShiftType.Evening, ShiftDate = new DateOnly(2026, 8, 12), HandoverFromUserId = UserId(2), HandoverToUserId = UserId(3), Summary = "Sabah vardiyasındaki açık arıza ve saha takip maddeleri akşam vardiyasına devredildi.", CriticalNotes = "Terminal A HVAC sıcaklık takibi operasyon saatleri boyunca sürdürülecek.", CreatedAt = new DateTime(2026, 8, 12, 16, 0, 0, DateTimeKind.Utc) },
-            new ShiftHandover { Id = ShiftHandoverId(3), HandoverNo = "VDT-2026-003", ShiftType = ShiftType.Night, ShiftDate = new DateOnly(2026, 8, 12), HandoverFromUserId = UserId(3), HandoverToUserId = UserId(2), Summary = "Akşam vardiyasından gece vardiyasına takip edilecek cihazlar ve kritik saha notları aktarıldı.", CriticalNotes = "Level Merkez çalışma izni ve PLC panel alarm listesi gece vardiyasında tekrar kontrol edilecek.", CreatedAt = new DateTime(2026, 8, 12, 23, 45, 0, DateTimeKind.Utc) }
+            new ShiftHandover { Id = ShiftHandoverId(1), HandoverNo = "VDT-2026-001", ShiftType = ShiftType.Morning, ShiftDate = new DateOnly(2026, 9, 9), HandoverFromUserId = UserId(10), HandoverToUserId = UserId(11), Summary = "Gece vardiyasından devralınan UPS alarmı ve bekleyen bakım faaliyetleri sabah vardiyasına aktarıldı.", CriticalNotes = "Level Merkez UPS alarm eşiği ve yük transfer davranışı yakından izlenecek.", CreatedAt = new DateTime(2026, 9, 9, 8, 0, 0, DateTimeKind.Utc) },
+            new ShiftHandover { Id = ShiftHandoverId(2), HandoverNo = "VDT-2026-002", ShiftType = ShiftType.Evening, ShiftDate = new DateOnly(2026, 9, 9), HandoverFromUserId = UserId(11), HandoverToUserId = UserId(12), Summary = "Sabah vardiyasındaki açık arıza ve saha takip maddeleri akşam vardiyasına devredildi.", CriticalNotes = "Terminal A HVAC sıcaklık takibi operasyon saatleri boyunca sürdürülecek.", CreatedAt = new DateTime(2026, 9, 9, 16, 0, 0, DateTimeKind.Utc) },
+            new ShiftHandover { Id = ShiftHandoverId(3), HandoverNo = "VDT-2026-003", ShiftType = ShiftType.Night, ShiftDate = new DateOnly(2026, 9, 9), HandoverFromUserId = UserId(12), HandoverToUserId = UserId(3), Summary = "Akşam vardiyasından gece vardiyasına takip edilecek cihazlar ve kritik saha notları aktarıldı.", CriticalNotes = "Level Merkez çalışma izni ve PLC panel alarm listesi gece vardiyasında tekrar kontrol edilecek.", CreatedAt = new DateTime(2026, 9, 9, 23, 45, 0, DateTimeKind.Utc) }
         });
 
         for (var i = 1001; i <= 1100; i++)
         {
-            var shiftDate = new DateOnly(2026, 5, 1).AddDays(i / 3);
+            var shiftDate = PresentationDateOnly(i / 3);
             var shiftType = shiftTypes[i % shiftTypes.Length];
             handovers.Add(new ShiftHandover
             {
@@ -411,11 +424,11 @@ public static class SeedData
                 HandoverNo = $"VDT-2026-{i - 900:000}",
                 ShiftType = shiftType,
                 ShiftDate = shiftDate,
-                HandoverFromUserId = UserId(i % 2 == 0 ? 3 : 2),
-                HandoverToUserId = UserId(i % 2 == 0 ? 2 : 3),
+                HandoverFromUserId = TechnicianUserIdFor(i),
+                HandoverToUserId = TechnicianUserIdFor(i + 1),
                 Summary = "Sentetik vardiya devri: açık işler, takip edilecek ekipmanlar ve kritik notlar aktarıldı.",
                 CriticalNotes = i % 5 == 0 ? "Kritik ekipman alarm trendi vardiya boyunca takip edilecek." : "Standart vardiya takip notları aktarıldı.",
-                CreatedAt = shiftDate.ToDateTime(new TimeOnly(shiftType == ShiftType.Morning ? 8 : shiftType == ShiftType.Evening ? 16 : 23, 45), DateTimeKind.Utc)
+                CreatedAt = shiftDate.ToDateTime(new TimeOnly(shiftType == ShiftType.Morning ? 8 : shiftType == ShiftType.Evening ? 16 : 22, 0), DateTimeKind.Utc)
             });
         }
 
@@ -429,15 +442,15 @@ public static class SeedData
 
         items.AddRange(new[]
         {
-            new ShiftItem { Id = ShiftItemId(1), ShiftHandoverId = ShiftHandoverId(1), ItemType = ShiftItemType.OpenFault, Title = "ARZ-2026-010 - UPS bypass alarmı takibi", Description = "UPS bypass alarmının tekrarlayıp tekrarlamadığı SCADA üzerinden izlenecek.", FaultId = FaultId(10), EquipmentId = EquipmentId(2), Priority = FaultPriority.Critical, IsCompleted = false, CreatedAt = new DateTime(2026, 8, 12, 8, 0, 0, DateTimeKind.Utc) },
-            new ShiftItem { Id = ShiftItemId(2), ShiftHandoverId = ShiftHandoverId(1), ItemType = ShiftItemType.PendingMaintenance, Title = "BKM-2026-003 - UPS yıllık bakım takibi", Description = "UPS batarya bloğu ve bypass hattı bakım planı teknik yönetici onayıyla takip edilecek.", EquipmentId = EquipmentId(2), MaintenancePlanId = MaintenancePlanId(3), Priority = FaultPriority.Critical, IsCompleted = false, CreatedAt = new DateTime(2026, 8, 12, 8, 2, 0, DateTimeKind.Utc) },
-            new ShiftItem { Id = ShiftItemId(3), ShiftHandoverId = ShiftHandoverId(1), ItemType = ShiftItemType.CriticalNote, Title = "Level Merkez yük transferi sırasında haber verilecek", Description = "Yük transfer testi veya bypass işlemi öncesinde operasyon merkezi bilgilendirilecek.", Priority = FaultPriority.High, IsCompleted = false, CreatedAt = new DateTime(2026, 8, 12, 8, 4, 0, DateTimeKind.Utc) },
-            new ShiftItem { Id = ShiftItemId(4), ShiftHandoverId = ShiftHandoverId(2), ItemType = ShiftItemType.OpenFault, Title = "ARZ-2026-011 - AHU sıcaklık takibi", Description = "Terminal A AHU besleme sıcaklığı ve sensör okumaları akşam vardiyasında kontrol edilecek.", FaultId = FaultId(11), EquipmentId = EquipmentId(3), Priority = FaultPriority.High, IsCompleted = false, CreatedAt = new DateTime(2026, 8, 12, 16, 0, 0, DateTimeKind.Utc) },
-            new ShiftItem { Id = ShiftItemId(5), ShiftHandoverId = ShiftHandoverId(2), ItemType = ShiftItemType.EquipmentToWatch, Title = "EQ-00032 - Jeneratör çalışma sesi izlenecek", Description = "Haftalık test sonrası jeneratör çalışma sesi ve yağ basıncı değerleri vardiya boyunca izlenecek.", EquipmentId = EquipmentId(1), Priority = FaultPriority.Medium, IsCompleted = false, CreatedAt = new DateTime(2026, 8, 12, 16, 3, 0, DateTimeKind.Utc) },
-            new ShiftItem { Id = ShiftItemId(6), ShiftHandoverId = ShiftHandoverId(2), ItemType = ShiftItemType.OngoingWork, Title = "Jeneratör yakıt seviyesi manuel kontrolü", Description = "Saha turunda jeneratör yakıt seviyesi ve sızıntı kontrolü yapılacak.", EquipmentId = EquipmentId(1), Priority = FaultPriority.Medium, IsCompleted = false, CreatedAt = new DateTime(2026, 8, 12, 16, 5, 0, DateTimeKind.Utc) },
-            new ShiftItem { Id = ShiftItemId(7), ShiftHandoverId = ShiftHandoverId(3), ItemType = ShiftItemType.EquipmentToWatch, Title = "EQ-00067 - PLC panel haberleşme durumu", Description = "PLC panel haberleşme alarmları gece vardiyasında kontrol edildi.", EquipmentId = EquipmentId(4), Priority = FaultPriority.Low, IsCompleted = true, CreatedAt = new DateTime(2026, 8, 12, 23, 45, 0, DateTimeKind.Utc), UpdatedAt = new DateTime(2026, 8, 12, 23, 58, 0, DateTimeKind.Utc) },
-            new ShiftItem { Id = ShiftItemId(8), ShiftHandoverId = ShiftHandoverId(3), ItemType = ShiftItemType.OngoingWork, Title = "SCADA alarm listesi nöbet kontrolü", Description = "Saat başı SCADA aktif alarm listesi kontrol edilip kritik alarmlar not alınacak.", Priority = FaultPriority.Medium, IsCompleted = false, CreatedAt = new DateTime(2026, 8, 12, 23, 47, 0, DateTimeKind.Utc) },
-            new ShiftItem { Id = ShiftItemId(9), ShiftHandoverId = ShiftHandoverId(3), ItemType = ShiftItemType.CriticalNote, Title = "Level Merkez girişinde çalışma izni kontrolü", Description = "Gece vardiyasında Level Merkez girişinde plan dışı çalışma olup olmadığı kontrol edilecek.", Priority = FaultPriority.Critical, IsCompleted = false, CreatedAt = new DateTime(2026, 8, 12, 23, 49, 0, DateTimeKind.Utc) }
+            new ShiftItem { Id = ShiftItemId(1), ShiftHandoverId = ShiftHandoverId(1), ItemType = ShiftItemType.OpenFault, Title = "ARZ-2026-010 - UPS bypass alarmı takibi", Description = "UPS bypass alarmının tekrarlayıp tekrarlamadığı SCADA üzerinden izlenecek.", FaultId = FaultId(10), EquipmentId = EquipmentId(2), Priority = FaultPriority.Critical, IsCompleted = false, CreatedAt = new DateTime(2026, 9, 9, 8, 0, 0, DateTimeKind.Utc) },
+            new ShiftItem { Id = ShiftItemId(2), ShiftHandoverId = ShiftHandoverId(1), ItemType = ShiftItemType.PendingMaintenance, Title = "BKM-2026-003 - UPS yıllık bakım takibi", Description = "UPS batarya bloğu ve bypass hattı bakım planı teknik yönetici onayıyla takip edilecek.", EquipmentId = EquipmentId(2), MaintenancePlanId = MaintenancePlanId(3), Priority = FaultPriority.Critical, IsCompleted = false, CreatedAt = new DateTime(2026, 9, 9, 8, 2, 0, DateTimeKind.Utc) },
+            new ShiftItem { Id = ShiftItemId(3), ShiftHandoverId = ShiftHandoverId(1), ItemType = ShiftItemType.CriticalNote, Title = "Level Merkez yük transferi sırasında haber verilecek", Description = "Yük transfer testi veya bypass işlemi öncesinde operasyon merkezi bilgilendirilecek.", Priority = FaultPriority.High, IsCompleted = false, CreatedAt = new DateTime(2026, 9, 9, 8, 4, 0, DateTimeKind.Utc) },
+            new ShiftItem { Id = ShiftItemId(4), ShiftHandoverId = ShiftHandoverId(2), ItemType = ShiftItemType.OpenFault, Title = "ARZ-2026-011 - AHU sıcaklık takibi", Description = "Terminal A AHU besleme sıcaklığı ve sensör okumaları akşam vardiyasında kontrol edilecek.", FaultId = FaultId(11), EquipmentId = EquipmentId(3), Priority = FaultPriority.High, IsCompleted = false, CreatedAt = new DateTime(2026, 9, 9, 16, 0, 0, DateTimeKind.Utc) },
+            new ShiftItem { Id = ShiftItemId(5), ShiftHandoverId = ShiftHandoverId(2), ItemType = ShiftItemType.EquipmentToWatch, Title = "EQ-00032 - Jeneratör çalışma sesi izlenecek", Description = "Haftalık test sonrası jeneratör çalışma sesi ve yağ basıncı değerleri vardiya boyunca izlenecek.", EquipmentId = EquipmentId(1), Priority = FaultPriority.Medium, IsCompleted = false, CreatedAt = new DateTime(2026, 9, 9, 16, 3, 0, DateTimeKind.Utc) },
+            new ShiftItem { Id = ShiftItemId(6), ShiftHandoverId = ShiftHandoverId(2), ItemType = ShiftItemType.OngoingWork, Title = "Jeneratör yakıt seviyesi manuel kontrolü", Description = "Saha turunda jeneratör yakıt seviyesi ve sızıntı kontrolü yapılacak.", EquipmentId = EquipmentId(1), Priority = FaultPriority.Medium, IsCompleted = false, CreatedAt = new DateTime(2026, 9, 9, 16, 5, 0, DateTimeKind.Utc) },
+            new ShiftItem { Id = ShiftItemId(7), ShiftHandoverId = ShiftHandoverId(3), ItemType = ShiftItemType.EquipmentToWatch, Title = "EQ-00067 - PLC panel haberleşme durumu", Description = "PLC panel haberleşme alarmları gece vardiyasında kontrol edildi.", EquipmentId = EquipmentId(4), Priority = FaultPriority.Low, IsCompleted = true, CreatedAt = new DateTime(2026, 9, 9, 23, 45, 0, DateTimeKind.Utc), UpdatedAt = new DateTime(2026, 9, 9, 23, 58, 0, DateTimeKind.Utc) },
+            new ShiftItem { Id = ShiftItemId(8), ShiftHandoverId = ShiftHandoverId(3), ItemType = ShiftItemType.OngoingWork, Title = "SCADA alarm listesi nöbet kontrolü", Description = "Saat başı SCADA aktif alarm listesi kontrol edilip kritik alarmlar not alınacak.", Priority = FaultPriority.Medium, IsCompleted = false, CreatedAt = new DateTime(2026, 9, 9, 23, 47, 0, DateTimeKind.Utc) },
+            new ShiftItem { Id = ShiftItemId(9), ShiftHandoverId = ShiftHandoverId(3), ItemType = ShiftItemType.CriticalNote, Title = "Level Merkez girişinde çalışma izni kontrolü", Description = "Gece vardiyasında Level Merkez girişinde plan dışı çalışma olup olmadığı kontrol edilecek.", Priority = FaultPriority.Critical, IsCompleted = false, CreatedAt = new DateTime(2026, 9, 9, 23, 49, 0, DateTimeKind.Utc) }
         });
 
         for (var i = 1001; i <= 1220; i++)
@@ -492,7 +505,7 @@ public static class SeedData
             {
                 Id = FaultActionId(i),
                 FaultId = fault.Id,
-                UserId = UserId(3),
+                UserId = TechnicianUserIdFor(i),
                 ActionType = actionType,
                 OldStatus = actionType == "StatusChanged" ? FaultStatus.Assigned : null,
                 NewStatus = actionType == "StatusChanged" ? fault.Status : null,
@@ -524,7 +537,7 @@ public static class SeedData
                 NewValues = "{}",
                 IpAddress = $"10.10.0.{i % 200}",
                 UserAgent = "SyntheticDemo/1.0",
-                CreatedAt = new DateTime(2026, 7, 1, 8, 0, 0, DateTimeKind.Utc).AddHours(i % 240)
+                CreatedAt = PresentationDateTime(i, 6)
             });
         }
 
@@ -549,7 +562,7 @@ public static class SeedData
                 RelatedEntityName = i % 2 == 0 ? "Fault" : "MaintenancePlan",
                 RelatedEntityId = null,
                 IsRead = i % 3 == 0,
-                CreatedAt = new DateTime(2026, 7, 1, 9, 0, 0, DateTimeKind.Utc).AddHours(i % 180)
+                CreatedAt = PresentationDateTime(i, 9)
             });
         }
 
@@ -564,6 +577,37 @@ public static class SeedData
         3 => "TK",
         _ => "AP"
     };
+
+    private static DateTime PresentationDateTime(int seed, int startHour)
+    {
+        var dayOffset = PresentationDayOffsets[PositiveModulo(seed, PresentationDayOffsets.Length)];
+        var hour = startHour + PositiveModulo(seed, 10);
+        var minute = PositiveModulo(seed * 7, 60);
+        return CreatedAt.AddDays(dayOffset).AddHours(hour).AddMinutes(minute);
+    }
+
+    private static DateOnly PresentationDateOnly(int seed) => DateOnly.FromDateTime(CreatedAt.AddDays(PresentationDayOffsets[PositiveModulo(seed, PresentationDayOffsets.Length)]));
+
+    private static DateTime FaultCreatedAtFor(int seed) => IsHistoricalFaultSeed(seed) ? HistoricalFaultDateTime(seed) : PresentationDateTime(seed, 7);
+
+    private static bool IsHistoricalFaultSeed(int seed) => seed is >= 1001 and <= 1045;
+
+    private static DateTime HistoricalFaultDateTime(int seed)
+    {
+        var index = seed - 1001;
+        var year = 2023 + (index / 15);
+        var yearIndex = index % 15;
+        var month = 1 + ((yearIndex * 3) % 12);
+        var day = 2 + ((yearIndex * 5) % 24);
+        var hour = 8 + (yearIndex % 8);
+        var minute = PositiveModulo(seed * 7, 60);
+
+        return new DateTime(year, month, day, hour, minute, 0, DateTimeKind.Utc);
+    }
+
+    private static Guid TechnicianUserIdFor(int seed) => UserId(TechnicianUserNumbers[PositiveModulo(seed, TechnicianUserNumbers.Length)]);
+
+    private static int PositiveModulo(int value, int length) => ((value % length) + length) % length;
 
     private static Guid UserId(int index) => Guid.Parse($"40000000-0000-0000-0000-{index:000000000000}");
     private static Guid EquipmentId(int index) => Guid.Parse($"50000000-0000-0000-0000-{index:000000000000}");

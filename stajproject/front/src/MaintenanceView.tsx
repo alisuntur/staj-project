@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import ExecutiveReportDownload from './ExecutiveReportDownload'
 
 type MaintenanceViewProps = {
   apiBaseUrl: string
@@ -490,6 +491,7 @@ function MaintenanceView({ apiBaseUrl, token }: MaintenanceViewProps) {
           <p className="mt-2 text-[15px] leading-5 text-[#45464D]">Planlı bakım faaliyetlerini oluştur, durumunu ilerlet ve tamamlanan işleri geçmişe işle.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isLoading} fileBaseName="bakim-yonetici-raporu" label="Rapor" path="/api/exports/maintenance" token={token} onMessage={setMessage} />
           <MaintenanceScreenButton active={screen === 'plans'} label="Bakım Planları" onClick={() => setScreen('plans')} />
           <MaintenanceScreenButton active={screen === 'new'} label="Yeni Bakım Planı" onClick={startCreatePlan} />
           <MaintenanceScreenButton active={screen === 'detail'} disabled={!selectedPlan} label="Bakım Detay" onClick={() => setScreen('detail')} />

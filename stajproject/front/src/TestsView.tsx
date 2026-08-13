@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import ExecutiveReportDownload from './ExecutiveReportDownload'
 
 type TestsViewProps = {
   apiBaseUrl: string
@@ -421,6 +422,7 @@ function TestsView({ apiBaseUrl, token }: TestsViewProps) {
           <p className="mt-2 text-[15px] leading-5 text-[#45464D]">Periyodik testleri kaydet, sonuçlarını izle ve ekipman bazlı test geçmişini takip et.</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isLoading} fileBaseName="test-yonetici-raporu" label="Rapor" path="/api/exports/tests" token={token} onMessage={setMessage} />
           <TestScreenButton active={screen === 'history'} label="Test Geçmişi" onClick={() => void openHistoryScreen()} />
           <TestScreenButton active={screen === 'new'} label="Yeni Test Kaydı" onClick={startCreateRecord} />
           <TestScreenButton active={screen === 'detail'} disabled={!selectedRecord} label="Test Detay" onClick={() => setScreen('detail')} />

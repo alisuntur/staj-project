@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import ExecutiveReportDownload from './ExecutiveReportDownload'
 
 type ReportsViewProps = {
   apiBaseUrl: string
@@ -299,25 +300,6 @@ function ReportsView({ apiBaseUrl, token }: ReportsViewProps) {
     await loadReport(filters, 'Rapor yenilendi.')
   }
 
-  function handleExportCsv() {
-    if (!report.generatedAt) {
-      setMessage('CSV oluşturmak için rapor verilerinin yüklenmesi bekleniyor.')
-      return
-    }
-
-    const csv = buildReportCsv(report)
-    const blob = new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `operasyon-raporu-${new Date().toISOString().slice(0, 10)}.csv`
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
-    setMessage(`CSV raporu indirildi: ${formatDateTime(report.generatedAt)}`)
-  }
-
   return (
     <section className="module-font mx-auto w-full max-w-[1600px] bg-[#FCF8FA] px-5 py-6 lg:px-6">
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -327,7 +309,7 @@ function ReportsView({ apiBaseUrl, token }: ReportsViewProps) {
           <p className="mt-1 text-sm text-[#45464D]">{message}</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <button className="border border-[#3755C3] px-4 py-2 text-sm font-semibold text-[#3755C3] transition-colors hover:bg-[#DDE1FF] disabled:cursor-not-allowed disabled:opacity-50" disabled={!report.generatedAt || isLoading} type="button" onClick={handleExportCsv}>CSV İndir</button>
+          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={!report.generatedAt || isLoading} fileBaseName="operasyon-yonetici-raporu" label="Yönetici Raporu" path={buildExportReportPath(filters)} token={token} onMessage={setMessage} />
           <button className="border border-[#76777D] px-4 py-2 text-sm font-semibold text-[#1B1B1D] transition-colors hover:bg-[#F6F3F5] disabled:cursor-not-allowed disabled:opacity-50" disabled={isLoading} type="button" onClick={handleRefresh}>Yenile</button>
         </div>
       </div>
@@ -493,40 +475,15 @@ function buildReportPath(filters: ReportFilters) {
   return params.size ? `/api/reports/operations?${params.toString()}` : '/api/reports/operations'
 }
 
-function buildReportCsv(report: OperationsReport) {
-  const rows: string[][] = [
-    ['Operasyon Raporu'],
-    ['Olusturma Zamani', formatDateTime(report.generatedAt)],
-    [],
-    ['Ozet', 'Deger'],
-    ['Ariza Sayisi', report.summary.faultCount.toString()],
-    ['Acik Ariza', report.summary.openFaultCount.toString()],
-    ['Kritik Ariza', report.summary.criticalFaultCount.toString()],
-    ['Ortalama Cozum Saati', report.summary.averageResolutionHours.toString()],
-    ['Bakim Tamamlama Orani', `%${report.summary.maintenanceCompletionRate}`],
-    ['Test Basari Orani', `%${report.summary.testSuccessRate}`],
-    ['Arizali Ekipman', report.summary.faultedEquipmentCount.toString()],
-    [],
-    ['En Fazla Ariza Veren Ekipman', 'Ariza Sayisi'],
-    ...report.faultsByEquipment.map((item) => [item.label, item.value.toString()]),
-    [],
-    ['Lokasyon', 'Ariza Sayisi'],
-    ...report.faultsByLocation.map((item) => [item.label, item.value.toString()]),
-    [],
-    ['Tekrarlayan Arizalar', 'Lokasyon', 'Sistem', 'Ariza Sayisi', 'Son Ariza'],
-    ...report.repeatedFaults.map((item) => [`${item.equipmentCode} - ${item.equipmentName}`, item.locationName, item.technicalSystemName, item.faultCount.toString(), item.lastFaultAt ? formatDateTime(item.lastFaultAt) : '']),
-    [],
-    ['Ariza No', 'Ekipman', 'Lokasyon', 'Sistem', 'Oncelik', 'Durum', 'Olusturma', 'Cozum Saati'],
-    ...report.faultRows.map((item) => [item.faultNo, `${item.equipmentCode} - ${item.equipmentName}`, item.locationName, item.technicalSystemName, priorityLabels[item.priority], statusLabels[item.status], formatDateTime(item.createdAt), item.resolutionHours?.toString() ?? '']),
-    [],
-    ['Bakim No', 'Ekipman', 'Lokasyon', 'Sistem', 'Tur', 'Oncelik', 'Durum', 'Plan Tarihi'],
-    ...report.maintenanceRows.map((item) => [item.planNo, `${item.equipmentCode} - ${item.equipmentName}`, item.locationName, item.technicalSystemName, item.maintenanceType, priorityLabels[item.priority], maintenanceStatusLabels[item.status], formatDate(item.plannedDate)]),
-    [],
-    ['Test', 'Ekipman', 'Lokasyon', 'Sistem', 'Sonuc', 'Tarih', 'Sure'],
-    ...report.testRows.map((item) => [item.testType, `${item.equipmentCode} - ${item.equipmentName}`, item.locationName, item.technicalSystemName, testResultLabels[item.result], formatDateTime(item.testDate), item.durationMinutes?.toString() ?? '']),
-  ]
+function buildExportReportPath(filters: ReportFilters) {
+  const params = new URLSearchParams()
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) {
+      params.set(key, value)
+    }
+  })
 
-  return rows.map((row) => row.map(csvCell).join(';')).join('\n')
+  return params.size ? `/api/exports/reports/operations?${params.toString()}` : '/api/exports/reports/operations'
 }
 
 function ReportField({ children, label }: { children: React.ReactNode; label: string }) {
@@ -570,10 +527,6 @@ function EmptyText({ text }: { text: string }) {
 
 function tableRowClass(index: number) {
   return `${index % 2 === 1 ? 'bg-[#F6F3F5]' : 'bg-white'} border-b border-[#C6C6CD] transition-colors hover:bg-[#FCF8FA]`
-}
-
-function csvCell(value: string) {
-  return `"${value.replace(/"/g, '""')}"`
 }
 
 function formatDate(value: string) {

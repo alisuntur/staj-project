@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import ExecutiveReportDownload from './ExecutiveReportDownload'
 
 type AuthUser = {
   fullName: string
@@ -793,10 +794,7 @@ function FaultsView({ apiBaseUrl, selectedFaultId, token, user }: FaultsViewProp
             <span className="material-symbols-outlined text-[18px]">refresh</span>
             Yenile
           </button>
-          {faultScreen === 'list' ? <button className="flex items-center gap-2 border border-[#C6C6CD] bg-[#E4E2E4] px-4 py-2 text-[13px] text-[#1B1B1D] shadow-sm" type="button">
-            <span className="material-symbols-outlined text-[18px]">download</span>
-            Dışa Aktar
-          </button> : null}
+          {faultScreen === 'list' ? <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isLoading} fileBaseName="ariza-yonetici-raporu" label="Rapor" path="/api/exports/faults" token={token} onMessage={setMessage} /> : null}
           {faultScreen === 'list' ? <button className="flex items-center gap-2 bg-black px-4 py-2 text-[13px] font-semibold text-white shadow-sm disabled:bg-[#76777D]" disabled={isLoading || !canCreateFaults} type="button" onClick={startCreateFault}>
             <span className="material-symbols-outlined text-[18px]">report</span>
             Yeni Arıza Kaydı
