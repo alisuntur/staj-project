@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import ExecutiveReportDownload from './ExecutiveReportDownload'
+import { friendlyErrorMessage, requestJson } from './apiClient'
+import { EmptyState, LoadingPanel, StatusMessage } from './UiState'
 
 type DashboardViewProps = {
   apiBaseUrl: string
@@ -181,7 +183,7 @@ function DashboardView({ apiBaseUrl, token, onOpenFault, onOpenShift }: Dashboar
         setMessage(`Son güncelleme: ${formatDateTime(data.generatedAt)}`)
       } catch (error) {
         if (!ignore) {
-          setMessage(error instanceof Error ? error.message : 'Dashboard verileri alınamadı.')
+          setMessage(friendlyErrorMessage(error, 'Dashboard verileri alınamadı.'))
         }
       } finally {
         if (!ignore) {
@@ -204,7 +206,7 @@ function DashboardView({ apiBaseUrl, token, onOpenFault, onOpenShift }: Dashboar
       setOverview(data)
       setMessage(`Son güncelleme: ${formatDateTime(data.generatedAt)}`)
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Dashboard yenilenemedi.')
+      setMessage(friendlyErrorMessage(error, 'Dashboard yenilenemedi.'))
     } finally {
       setIsLoading(false)
     }
@@ -215,6 +217,7 @@ function DashboardView({ apiBaseUrl, token, onOpenFault, onOpenShift }: Dashboar
   const trendBarMaxHeight = activePeriod === 'year' ? 130 : 190
   const maxLocationFault = Math.max(1, ...overview.faultsByLocation.map((item) => item.value))
   const totalFaultStatus = overview.faultStatusDistribution.reduce((sum, item) => sum + item.value, 0)
+  const lastThirtyDayWorkload = overview.kpis.openFaultCount + overview.kpis.todayMaintenanceCount + overview.kpis.monthlyCompletedTestCount
   const activityRows: ActivityRow[] = [
     ...overview.recentFaults.map((fault) => ({
       id: `fault-${fault.id}`,
@@ -245,13 +248,27 @@ function DashboardView({ apiBaseUrl, token, onOpenFault, onOpenShift }: Dashboar
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <h2 className="text-2xl font-semibold tracking-tight text-[#1B1B1D]">Operasyon Özeti</h2>
-          <p className="mt-1 text-sm text-[#45464D]">{message}</p>
+          <p className="mt-1 text-sm text-[#45464D]">Operasyon sağlığı, kritik riskler ve rapor çıktıları tek ekranda.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={!overview.generatedAt || isLoading} fileBaseName={`operasyon-dashboard-${activePeriod}`} label="Yönetici Raporu" path={`/api/exports/dashboard?period=${activePeriod}`} token={token} onMessage={setMessage} />
+          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={!overview.generatedAt || isLoading} fileBaseName={`operasyon-dashboard-${activePeriod}`} label="Dashboard Raporu" path={`/api/exports/dashboard?period=${activePeriod}`} token={token} onMessage={setMessage} />
           <button className="border border-[#76777D] px-4 py-2 text-sm font-semibold text-[#1B1B1D] transition-colors hover:bg-[#F6F3F5]" disabled={isLoading} type="button" onClick={handleRefresh}>Yenile</button>
         </div>
       </div>
+
+      <div className="mb-6"><StatusMessage busy={isLoading} message={message} /></div>
+
+      <section className="mb-6 grid gap-4 xl:grid-cols-[1.25fr_1fr]">
+        <DemoGuide />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <ExecutiveInsightCard helper="Arıza, bakım ve test iş yükü" icon="calendar_month" label="Son 30 Gün Operasyon" tone="blue" value={lastThirtyDayWorkload} />
+          <ExecutiveInsightCard helper="Acil takip gerektiren açık risk" icon="warning" label="Kritik Risk" tone="danger" value={overview.kpis.criticalFaultCount} />
+          <ExecutiveInsightCard helper={`${overview.maintenanceCompletion.completed}/${overview.maintenanceCompletion.total} bakım tamamlandı`} icon="fact_check" label="Bakım Uygunluğu" tone="success" value={`%${overview.maintenanceCompletion.rate}`} />
+          <ExecutiveInsightCard helper={`${overview.testSuccess.completed}/${overview.testSuccess.total} test başarılı`} icon="verified" label="Test Güveni" tone="navy" value={`%${overview.testSuccess.rate}`} />
+        </div>
+      </section>
+
+      {isLoading && !overview.generatedAt ? <div className="mb-6"><LoadingPanel title="Dashboard hazırlanıyor" text="KPI, trend ve kritik kayıtlar API'den alınıyor." /></div> : null}
 
       <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-5">
         <KpiCard helper="Operasyon takibinde" icon="build_circle" label="Açık Arızalar" tone="blue" value={overview.kpis.openFaultCount} />
@@ -296,7 +313,7 @@ function DashboardView({ apiBaseUrl, token, onOpenFault, onOpenShift }: Dashboar
                   <div className="h-2 rounded bg-[#E4E2E4]"><div className="h-2 rounded bg-black" style={{ width: `${totalFaultStatus === 0 ? 0 : (item.value / totalFaultStatus) * 100}%` }} /></div>
                 </div>
               ))}
-              {overview.faultStatusDistribution.length === 0 ? <EmptyText text="Durum dağılımı bulunamadı." /> : null}
+              {overview.faultStatusDistribution.length === 0 ? <EmptyText title="Durum dağılımı yok" text="Seçili dönem için durum dağılımı bulunamadı." /> : null}
             </div>
           </section>
 
@@ -313,7 +330,7 @@ function DashboardView({ apiBaseUrl, token, onOpenFault, onOpenShift }: Dashboar
                   <Badge label={item.priority ? labelFor(priorityLabels, item.priority) : labelFor(shiftTypeLabels, item.shiftType)} tone={item.priority === 'Critical' ? 'danger' : item.priority === 'High' ? 'warning' : 'default'} />
                 </div>
               ))}
-              {overview.openShiftItems.length === 0 ? <EmptyText text="Açık vardiya maddesi bulunamadı." /> : null}
+              {overview.openShiftItems.length === 0 ? <EmptyText title="Devreden iş yok" text="Açık vardiya maddesi bulunamadı." /> : null}
             </div>
           </section>
         </div>
@@ -333,7 +350,7 @@ function DashboardView({ apiBaseUrl, token, onOpenFault, onOpenShift }: Dashboar
                   <div className="flex items-center justify-between text-[11px] text-[#45464D]"><span>{formatDateTime(fault.updatedAt ?? fault.createdAt)}</span><span>{fault.locationName}</span></div>
                 </div>
               ))}
-              {overview.criticalFaults.length === 0 ? <EmptyText text="Açık kritik arıza kaydı bulunamadı." /> : null}
+              {overview.criticalFaults.length === 0 ? <EmptyText title="Kritik açık arıza yok" text="Açık kritik arıza kaydı bulunamadı." /> : null}
             </div>
           </section>
 
@@ -341,7 +358,7 @@ function DashboardView({ apiBaseUrl, token, onOpenFault, onOpenShift }: Dashboar
             <h3 className="mb-3 text-lg font-semibold text-[#1B1B1D]">Konuma Göre Dağılım</h3>
             <div className="space-y-3 rounded bg-[#FCF8FA] p-3">
               {overview.faultsByLocation.map((item) => <HorizontalBar key={item.label} label={item.label} max={maxLocationFault} value={item.value} />)}
-              {overview.faultsByLocation.length === 0 ? <EmptyText text="Lokasyon dağılımı bulunamadı." /> : null}
+              {overview.faultsByLocation.length === 0 ? <EmptyText title="Lokasyon dağılımı yok" text="Seçili dönem için lokasyon dağılımı bulunamadı." /> : null}
             </div>
           </section>
 
@@ -382,7 +399,7 @@ function DashboardView({ apiBaseUrl, token, onOpenFault, onOpenShift }: Dashboar
                   <td className="p-3 text-right"><button className="material-symbols-outlined text-[18px] text-[#45464D] hover:text-black" title="Detayı aç" type="button" onClick={() => row.targetType === 'fault' ? onOpenFault(row.targetId) : onOpenShift(row.targetId)}>open_in_new</button></td>
                 </tr>
               ))}
-              {activityRows.length === 0 ? <tr><td className="p-4 text-sm text-[#45464D]" colSpan={6}>Aktivite kaydı bulunamadı.</td></tr> : null}
+              {activityRows.length === 0 ? <tr><td colSpan={6}><EmptyState icon="timeline" title="Aktivite kaydı yok" text="Son aktiviteler burada listelenir. Veri yoksa rapor indirme veya filtreleme adımıyla devam edin." /></td></tr> : null}
             </tbody>
           </table>
         </div>
@@ -392,17 +409,9 @@ function DashboardView({ apiBaseUrl, token, onOpenFault, onOpenShift }: Dashboar
 }
 
 async function dashboardRequest<T>(apiBaseUrl: string, token: string, path: string): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  return requestJson<T>(`${apiBaseUrl}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
-  const text = await response.text()
-  const payload = text ? JSON.parse(text) : null
-
-  if (!response.ok) {
-    throw new Error((payload as { message?: string } | null)?.message ?? `API isteği başarısız: ${response.status}`)
-  }
-
-  return payload as T
 }
 
 function dashboardPath(period: TrendPeriod) {
@@ -424,6 +433,43 @@ function KpiCard({ helper, icon, label, tone, value }: { helper: string; icon: s
   return <section className={`${borderClass} flex flex-col gap-2 rounded-lg border border-[#C6C6CD] bg-white p-4 shadow-[0px_1px_3px_rgba(15,23,42,0.08)]`}><div className="flex items-center justify-between"><span className={`${labelClass} text-[11px] font-bold uppercase tracking-wide`}>{label}</span><span className={`${iconClass} flex h-8 w-8 items-center justify-center rounded-full`}><span className="material-symbols-outlined text-[18px]">{icon}</span></span></div><div className={`${toneClass} font-mono text-[32px] font-bold leading-10 tracking-tight`}>{value}</div><p className="text-[13px] text-[#45464D]">{helper}</p></section>
 }
 
+function DemoGuide() {
+  const steps = [
+    { icon: 'dashboard', title: '1. Operasyon sağlığı', text: 'KPI kartlarıyla açık arıza, kritik risk ve bakım/test oranlarını anlat.' },
+    { icon: 'warning', title: '2. Kritik aksiyon', text: 'Kritik açık arızadan detaya geçerek saha müdahale akışını göster.' },
+    { icon: 'picture_as_pdf', title: '3. Yönetici çıktısı', text: 'Excel/PDF raporu indirip imzaya hazır çıktıyı sun.' },
+  ]
+
+  return (
+    <section className="rounded-lg border border-[#C6C6CD] bg-[#111827] p-5 text-white shadow-[0px_1px_3px_rgba(15,23,42,0.12)]">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#BEC6E0]">Operasyon Rehberi</p>
+          <h3 className="mt-1 text-2xl font-bold">3 dakikalık ürün akışı</h3>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#D1D5DB]">Bu kart, dashboard anlatımını yönetici diline çeker: risk, iş yükü, uygunluk ve rapor çıktısı.</p>
+        </div>
+        <span className="inline-flex w-fit items-center gap-2 rounded bg-[#3755C3] px-3 py-2 text-xs font-bold uppercase tracking-wide"><span className="material-symbols-outlined text-[16px]">slideshow</span>MVP Akışı</span>
+      </div>
+      <div className="mt-5 grid gap-3 md:grid-cols-3">
+        {steps.map((step) => (
+          <div className="rounded border border-white/15 bg-white/5 p-4" key={step.title}>
+            <span className="material-symbols-outlined text-[#DBEAFE]">{step.icon}</span>
+            <p className="mt-3 text-sm font-bold">{step.title}</p>
+            <p className="mt-1 text-xs leading-5 text-[#D1D5DB]">{step.text}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function ExecutiveInsightCard({ helper, icon, label, tone, value }: { helper: string; icon: string; label: string; tone: 'blue' | 'danger' | 'success' | 'navy'; value: number | string }) {
+  const iconClass = tone === 'danger' ? 'bg-[#FFDAD6] text-[#BA1A1A]' : tone === 'success' ? 'bg-[#DCFCE7] text-[#166534]' : tone === 'navy' ? 'bg-[#BEC6E0] text-[#131B2E]' : 'bg-[#DDE1FF] text-[#3755C3]'
+  const valueClass = tone === 'danger' ? 'text-[#BA1A1A]' : 'text-[#1B1B1D]'
+
+  return <section className="rounded-lg border border-[#C6C6CD] bg-white p-4 shadow-[0px_1px_3px_rgba(15,23,42,0.08)]"><div className="flex items-start justify-between gap-3"><div><p className="text-[11px] font-bold uppercase tracking-wide text-[#45464D]">{label}</p><p className={`${valueClass} mt-2 font-mono text-3xl font-bold`}>{value}</p></div><span className={`${iconClass} material-symbols-outlined rounded-full p-2 text-[22px]`}>{icon}</span></div><p className="mt-3 text-[13px] leading-5 text-[#45464D]">{helper}</p></section>
+}
+
 function HorizontalBar({ label, max, value }: { label: string; max: number; value: number }) {
   return <div><div className="mb-1 flex items-center justify-between gap-3 text-[13px]"><span className="font-semibold text-[#1B1B1D]">{label}</span><span className="font-mono text-[#45464D]">{value}</span></div><div className="h-2 rounded bg-[#E4E2E4]"><div className="h-2 rounded bg-[#3755C3]" style={{ width: `${Math.max(5, (value / max) * 100)}%` }} /></div></div>
 }
@@ -440,8 +486,8 @@ function Badge({ label, tone = 'default' }: { label: string; tone?: 'default' | 
   return <span className={`${className} inline-flex rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide`}>{label}</span>
 }
 
-function EmptyText({ text }: { text: string }) {
-  return <p className="p-3 text-sm text-[#45464D]">{text}</p>
+function EmptyText({ text, title }: { text: string; title: string }) {
+  return <EmptyState text={text} title={title} />
 }
 
 function labelFor(labels: Record<string, string>, value: string) {

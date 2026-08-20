@@ -395,14 +395,15 @@ public sealed class ExportsController(AppDbContext dbContext, IExecutiveReportSe
     private IActionResult Export(ExecutiveReportDocument report, string format, string fileName)
     {
         var normalized = format.Trim().ToLowerInvariant();
+        var stampedFileName = $"{fileName}-{DateTime.UtcNow:yyyyMMdd-HHmm}";
         if (normalized is "xlsx" or "excel")
         {
-            return File(reportService.BuildExcel(report), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"{fileName}.xlsx");
+            return File(reportService.BuildExcel(report), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"{stampedFileName}.xlsx");
         }
 
         if (normalized == "pdf")
         {
-            return File(reportService.BuildPdf(report), "application/pdf", $"{fileName}.pdf");
+            return File(reportService.BuildPdf(report), "application/pdf", $"{stampedFileName}.pdf");
         }
 
         return BadRequest(new { message = "Desteklenen formatlar: xlsx, pdf." });

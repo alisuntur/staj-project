@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import ExecutiveReportDownload from './ExecutiveReportDownload'
+import { requestJson } from './apiClient'
+import { StatusMessage } from './UiState'
 
 type AuthUser = {
   fullName: string
@@ -320,10 +322,10 @@ function NotificationsView({ apiBaseUrl, token, user, onUnreadCountChange }: Not
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#45464D]">İzlenebilirlik</p>
           <h2 className="mt-1 text-3xl font-bold tracking-tight text-black">Bildirim ve Aktivite Merkezi</h2>
-          <p className="mt-2 text-[15px] text-[#45464D]">{message}</p>
+          <div className="mt-3"><StatusMessage busy={isNotificationsLoading || isActivityLoading} message={message} /></div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {canViewActivity ? <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isNotificationsLoading || isActivityLoading} fileBaseName="aktivite-denetim-raporu" label="Rapor" path="/api/exports/activity" token={token} onMessage={setMessage} /> : null}
+          {canViewActivity ? <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isNotificationsLoading || isActivityLoading} fileBaseName="aktivite-denetim-raporu" label="Aktivite Raporu" path="/api/exports/activity" token={token} onMessage={setMessage} /> : null}
           <button className="flex items-center gap-2 border border-[#3755C3] px-4 py-2 text-sm font-semibold text-[#3755C3] transition-colors hover:bg-[#DDE1FF] disabled:cursor-wait disabled:opacity-60" disabled={isNotificationsLoading || isActivityLoading} type="button" onClick={handleRefresh}>
             <span className="material-symbols-outlined text-[18px]">refresh</span>
             Yenile
@@ -376,7 +378,7 @@ function NotificationsView({ apiBaseUrl, token, user, onUnreadCountChange }: Not
                 </div>
               </article>
             ))}
-            {notifications.items.length === 0 ? <EmptyState text="Bu filtrelerle bildirim bulunamadı." /> : null}
+            {notifications.items.length === 0 ? <EmptyState text={isNotificationsLoading ? 'Bildirimler yükleniyor...' : 'Bu filtrelerle bildirim bulunamadı.'} /> : null}
           </div>
         </section>
 
@@ -422,7 +424,7 @@ function NotificationsView({ apiBaseUrl, token, user, onUnreadCountChange }: Not
                     <p className="mt-1 font-mono text-xs text-[#76777D]">{formatDateTime(item.createdAt)}{item.ipAddress ? ` • ${item.ipAddress}` : ''}</p>
                   </article>
                 ))}
-                {activity.items.length === 0 ? <EmptyState text="Bu filtrelerle aktivite kaydı bulunamadı." /> : null}
+                {activity.items.length === 0 ? <EmptyState text={isActivityLoading ? 'Aktivite kayıtları yükleniyor...' : 'Bu filtrelerle aktivite kaydı bulunamadı.'} /> : null}
               </div>
             </section>
           ) : null}
@@ -474,15 +476,7 @@ async function notificationRequest<T>(apiBaseUrl: string, token: string, path: s
     headers.set('Content-Type', 'application/json')
   }
 
-  const response = await fetch(`${apiBaseUrl}${path}`, { ...options, headers })
-  const text = await response.text()
-  const payload = text ? JSON.parse(text) : null
-
-  if (!response.ok) {
-    throw new Error((payload as { message?: string } | null)?.message ?? `API isteği başarısız: ${response.status}`)
-  }
-
-  return payload as T
+  return requestJson<T>(`${apiBaseUrl}${path}`, { ...options, headers })
 }
 
 export default NotificationsView

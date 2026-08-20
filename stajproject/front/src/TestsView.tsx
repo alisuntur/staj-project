@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import ExecutiveReportDownload from './ExecutiveReportDownload'
+import { requestJson } from './apiClient'
+import { StatusMessage } from './UiState'
 
 type TestsViewProps = {
   apiBaseUrl: string
@@ -165,17 +167,9 @@ function TestsView({ apiBaseUrl, token }: TestsViewProps) {
       setIsLoading(true)
       try {
         async function initialRequest<T>(path: string): Promise<T> {
-          const response = await fetch(`${apiBaseUrl}${path}`, {
+          return requestJson<T>(`${apiBaseUrl}${path}`, {
             headers: { Authorization: `Bearer ${token}` },
           })
-          const text = await response.text()
-          const payload = text ? JSON.parse(text) : null
-
-          if (!response.ok) {
-            throw new Error((payload as { message?: string } | null)?.message ?? `API isteği başarısız: ${response.status}`)
-          }
-
-          return payload as T
         }
 
         const [locationData, equipmentData, userData, planData, recordData] = await Promise.all([
@@ -231,15 +225,7 @@ function TestsView({ apiBaseUrl, token }: TestsViewProps) {
       headers.set('Content-Type', 'application/json')
     }
 
-    const response = await fetch(`${apiBaseUrl}${path}`, { ...options, headers })
-    const text = await response.text()
-    const payload = text ? JSON.parse(text) : null
-
-    if (!response.ok) {
-      throw new Error((payload as { message?: string } | null)?.message ?? `API isteği başarısız: ${response.status}`)
-    }
-
-    return payload as T
+    return requestJson<T>(`${apiBaseUrl}${path}`, { ...options, headers })
   }
 
   async function loadRecords(currentFilters: TestFilters = filters) {
@@ -422,7 +408,7 @@ function TestsView({ apiBaseUrl, token }: TestsViewProps) {
           <p className="mt-2 text-[15px] leading-5 text-[#45464D]">Periyodik testleri kaydet, sonuçlarını izle ve ekipman bazlı test geçmişini takip et.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isLoading} fileBaseName="test-yonetici-raporu" label="Rapor" path="/api/exports/tests" token={token} onMessage={setMessage} />
+          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isLoading} fileBaseName="test-yonetici-raporu" label="Test Raporu" path="/api/exports/tests" token={token} onMessage={setMessage} />
           <TestScreenButton active={screen === 'history'} label="Test Geçmişi" onClick={() => void openHistoryScreen()} />
           <TestScreenButton active={screen === 'new'} label="Yeni Test Kaydı" onClick={startCreateRecord} />
           <TestScreenButton active={screen === 'detail'} disabled={!selectedRecord} label="Test Detay" onClick={() => setScreen('detail')} />
@@ -437,7 +423,7 @@ function TestsView({ apiBaseUrl, token }: TestsViewProps) {
         {screen === 'equipmentHistory' ? renderEquipmentHistoryScreen() : null}
       </div>
 
-      <div className="mt-4 border border-[#C6C6CD] bg-[#F6F3F5] p-3 text-[13px] text-[#45464D]">{message}</div>
+      <div className="mt-4"><StatusMessage busy={isLoading} message={message} /></div>
     </section>
   )
 
@@ -526,8 +512,8 @@ function TestsView({ apiBaseUrl, token }: TestsViewProps) {
               </tbody>
             </table>
           </div>
-          {records.length === 0 ? <div className="p-8 text-center text-sm text-[#45464D]">Filtreye uygun test kaydı bulunamadı.</div> : null}
-          <div className="flex items-center justify-between border-t border-[#C6C6CD] bg-white p-3 text-[13px] text-[#45464D]"><span>Toplam {records.length} test kaydı gösteriliyor</span><span className="font-mono text-xs text-[#76777D]">API: /api/tests/records</span></div>
+          {records.length === 0 ? <div className="p-8 text-center text-sm text-[#45464D]">{isLoading ? 'Test kayıtları yükleniyor...' : 'Filtreye uygun test kaydı bulunamadı.'}</div> : null}
+          <div className="flex items-center justify-between border-t border-[#C6C6CD] bg-white p-3 text-[13px] text-[#45464D]"><span>Toplam {records.length} test kaydı gösteriliyor</span><span className="text-xs text-[#76777D]">Test geçmişi ve uygunluk takibi</span></div>
         </section>
       </>
     )

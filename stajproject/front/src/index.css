@@ -18,6 +18,30 @@ body {
   margin: 0;
 }
 
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #3755c3;
+  outline-offset: 2px;
+}
+
+.overflow-x-auto {
+  scrollbar-color: #76777d #f6f3f5;
+  scrollbar-width: thin;
+}
+
+.overflow-x-auto table {
+  min-width: 760px;
+}
+
+@media (min-width: 1280px) {
+  .overflow-x-auto table {
+    min-width: 100%;
+  }
+}
+
 .material-symbols-outlined {
   font-family: "Material Symbols Outlined";
   font-weight: normal;

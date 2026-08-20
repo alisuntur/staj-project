@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import ExecutiveReportDownload from './ExecutiveReportDownload'
+import { requestJson } from './apiClient'
+import { LoadingPanel, StatusMessage } from './UiState'
 
 type ReportsViewProps = {
   apiBaseUrl: string
@@ -306,10 +308,10 @@ function ReportsView({ apiBaseUrl, token }: ReportsViewProps) {
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#45464D]">Analiz ekranları ve rapor filtreleri</p>
           <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[#1B1B1D]">Raporlama ve Veri Analizi</h2>
-          <p className="mt-1 text-sm text-[#45464D]">{message}</p>
+          <div className="mt-3"><StatusMessage busy={isLoading} message={message} /></div>
         </div>
         <div className="flex flex-wrap gap-3">
-          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={!report.generatedAt || isLoading} fileBaseName="operasyon-yonetici-raporu" label="Yönetici Raporu" path={buildExportReportPath(filters)} token={token} onMessage={setMessage} />
+          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={!report.generatedAt || isLoading} fileBaseName="operasyon-yonetici-raporu" label="Operasyon Analiz Raporu" path={buildExportReportPath(filters)} token={token} onMessage={setMessage} />
           <button className="border border-[#76777D] px-4 py-2 text-sm font-semibold text-[#1B1B1D] transition-colors hover:bg-[#F6F3F5] disabled:cursor-not-allowed disabled:opacity-50" disabled={isLoading} type="button" onClick={handleRefresh}>Yenile</button>
         </div>
       </div>
@@ -365,6 +367,8 @@ function ReportsView({ apiBaseUrl, token }: ReportsViewProps) {
           <button className="bg-black px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#131B2E] disabled:cursor-not-allowed disabled:bg-[#76777D]" disabled={isLoading} type="button" onClick={() => void handleApplyFilters()}>Filtrele</button>
         </div>
       </section>
+
+      {isLoading && !report.generatedAt ? <div className="mb-6"><LoadingPanel title="Rapor verileri hazırlanıyor" text="Filtreler, KPI'lar ve tablo verileri API'den alınıyor." /></div> : null}
 
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <ReportKpiCard helper="Filtreye uyan toplam kayıt" icon="report" label="Arıza Sayısı" tone="blue" value={report.summary.faultCount} />
@@ -451,17 +455,9 @@ function ReportsView({ apiBaseUrl, token }: ReportsViewProps) {
 }
 
 async function reportRequest<T>(apiBaseUrl: string, token: string, path: string): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  return requestJson<T>(`${apiBaseUrl}${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   })
-  const text = await response.text()
-  const payload = text ? JSON.parse(text) : null
-
-  if (!response.ok) {
-    throw new Error((payload as { message?: string } | null)?.message ?? `API isteği başarısız: ${response.status}`)
-  }
-
-  return payload as T
 }
 
 function buildReportPath(filters: ReportFilters) {

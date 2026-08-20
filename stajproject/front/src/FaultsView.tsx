@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import ExecutiveReportDownload from './ExecutiveReportDownload'
+import { requestJson } from './apiClient'
+import { EmptyState, LoadingPanel, StatusMessage } from './UiState'
 
 type AuthUser = {
   fullName: string
@@ -243,17 +245,9 @@ function FaultsView({ apiBaseUrl, selectedFaultId, token, user }: FaultsViewProp
 
       try {
         async function initialRequest<T>(path: string): Promise<T> {
-          const response = await fetch(`${apiBaseUrl}${path}`, {
+          return requestJson<T>(`${apiBaseUrl}${path}`, {
             headers: { Authorization: `Bearer ${token}` },
           })
-          const text = await response.text()
-          const payload = text ? JSON.parse(text) : null
-
-          if (!response.ok) {
-            throw new Error((payload as { message?: string } | null)?.message ?? `API isteği başarısız: ${response.status}`)
-          }
-
-          return payload as T
         }
 
         const [locationData, systemData, equipmentData] = await Promise.all([
@@ -337,15 +331,7 @@ function FaultsView({ apiBaseUrl, selectedFaultId, token, user }: FaultsViewProp
       headers.set('Content-Type', 'application/json')
     }
 
-    const response = await fetch(`${apiBaseUrl}${path}`, { ...options, headers })
-    const text = await response.text()
-    const payload = text ? JSON.parse(text) : null
-
-    if (!response.ok) {
-      throw new Error((payload as { message?: string } | null)?.message ?? `API isteği başarısız: ${response.status}`)
-    }
-
-    return payload as T
+    return requestJson<T>(`${apiBaseUrl}${path}`, { ...options, headers })
   }
 
   async function loadFaults(currentFilters: FaultFilters = filters) {
@@ -722,7 +708,7 @@ function FaultsView({ apiBaseUrl, selectedFaultId, token, user }: FaultsViewProp
                   <FaultActionButton disabled={isLoading || !assignForm.assignedToUserId} icon="assignment_ind" label="Personele Ata" onClick={handleAssignFault} />
                 </div>
               ) : (
-                <p className="text-[13px] leading-5 text-[#45464D]">Teknik personel listesi yalnızca Admin demo kullanıcısı ile yüklenir.</p>
+                <p className="text-[13px] leading-5 text-[#45464D]">Teknik personel listesi yalnızca Admin yetkisiyle yüklenir.</p>
               )}
             </section>
           ) : null}
@@ -772,7 +758,7 @@ function FaultsView({ apiBaseUrl, selectedFaultId, token, user }: FaultsViewProp
             </section>
           ) : null}
 
-          <div className="border border-[#C6C6CD] bg-[#F6F3F5] p-3 text-[13px] text-[#45464D]">{message}</div>
+          <StatusMessage busy={isLoading} message={message} />
         </aside>
       </div>
     )
@@ -794,13 +780,15 @@ function FaultsView({ apiBaseUrl, selectedFaultId, token, user }: FaultsViewProp
             <span className="material-symbols-outlined text-[18px]">refresh</span>
             Yenile
           </button>
-          {faultScreen === 'list' ? <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isLoading} fileBaseName="ariza-yonetici-raporu" label="Rapor" path="/api/exports/faults" token={token} onMessage={setMessage} /> : null}
+          {faultScreen === 'list' ? <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isLoading} fileBaseName="ariza-yonetici-raporu" label="Arıza Raporu" path="/api/exports/faults" token={token} onMessage={setMessage} /> : null}
           {faultScreen === 'list' ? <button className="flex items-center gap-2 bg-black px-4 py-2 text-[13px] font-semibold text-white shadow-sm disabled:bg-[#76777D]" disabled={isLoading || !canCreateFaults} type="button" onClick={startCreateFault}>
             <span className="material-symbols-outlined text-[18px]">report</span>
             Yeni Arıza Kaydı
           </button> : null}
         </div>
       </div>
+
+      {faultScreen !== 'detail' ? <div className="mb-6"><StatusMessage busy={isLoading} message={message} /></div> : null}
 
       <div key={faultScreen} className="screen-transition">
       {faultScreen === 'list' ? (
@@ -973,11 +961,11 @@ function FaultsView({ apiBaseUrl, selectedFaultId, token, user }: FaultsViewProp
             </table>
           </div>
           {faults.length === 0 ? (
-            <div className="p-8 text-center text-sm text-[#45464D]">Filtreye uygun arıza kaydı bulunamadı.</div>
+            <div>{isLoading ? <LoadingPanel title="Arıza kayıtları yükleniyor" /> : <EmptyState icon="report_problem" title="Arıza kaydı yok" text="Seçili filtrelere uygun arıza kaydı bulunamadı. Filtreleri temizleyerek tüm kayıtları görüntüleyebilirsiniz." />}</div>
           ) : null}
           <div className="flex items-center justify-between border-t border-[#C6C6CD] bg-white p-3">
             <span className="text-[13px] text-[#45464D]">Toplam {faults.length} arıza gösteriliyor</span>
-            <span className="font-mono text-xs text-[#76777D]">API: /api/faults</span>
+            <span className="text-xs text-[#76777D]">Canlı operasyon listesi</span>
           </div>
         </section>
 

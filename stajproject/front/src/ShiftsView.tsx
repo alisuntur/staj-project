@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import ExecutiveReportDownload from './ExecutiveReportDownload'
+import { requestJson } from './apiClient'
+import { StatusMessage } from './UiState'
 
 type ShiftsViewProps = {
   apiBaseUrl: string
@@ -211,17 +213,9 @@ function ShiftsView({ apiBaseUrl, selectedHandoverNo, token }: ShiftsViewProps) 
       setIsLoading(true)
       try {
         async function initialRequest<T>(path: string): Promise<T> {
-          const response = await fetch(`${apiBaseUrl}${path}`, {
+          return requestJson<T>(`${apiBaseUrl}${path}`, {
             headers: { Authorization: `Bearer ${token}` },
           })
-          const text = await response.text()
-          const payload = text ? JSON.parse(text) : null
-
-          if (!response.ok) {
-            throw new Error((payload as { message?: string } | null)?.message ?? `API isteği başarısız: ${response.status}`)
-          }
-
-          return payload as T
         }
 
         const [handoverData, userData, openItemData] = await Promise.all([
@@ -279,15 +273,7 @@ function ShiftsView({ apiBaseUrl, selectedHandoverNo, token }: ShiftsViewProps) 
       headers.set('Content-Type', 'application/json')
     }
 
-    const response = await fetch(`${apiBaseUrl}${path}`, { ...options, headers })
-    const text = await response.text()
-    const payload = text ? JSON.parse(text) : null
-
-    if (!response.ok) {
-      throw new Error((payload as { message?: string } | null)?.message ?? `API isteği başarısız: ${response.status}`)
-    }
-
-    return payload as T
+    return requestJson<T>(`${apiBaseUrl}${path}`, { ...options, headers })
   }
 
   async function loadHandovers(currentFilters: ShiftFilters = filters) {
@@ -536,7 +522,7 @@ function ShiftsView({ apiBaseUrl, selectedHandoverNo, token }: ShiftsViewProps) 
           <p className="mt-2 text-[15px] leading-5 text-[#45464D]">Açık işleri, kritik notları ve takip edilecek ekipmanları sonraki vardiyaya düzenli aktar.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isLoading} fileBaseName="vardiya-yonetici-raporu" label="Rapor" path="/api/exports/shifts" token={token} onMessage={setMessage} />
+          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isLoading} fileBaseName="vardiya-yonetici-raporu" label="Vardiya Raporu" path="/api/exports/shifts" token={token} onMessage={setMessage} />
           <ShiftScreenButton active={screen === 'list'} label="Devir Teslim Listesi" onClick={() => setScreen('list')} />
           <ShiftScreenButton active={screen === 'new'} label="Yeni Devir Teslim" onClick={() => void startCreateHandover()} />
           <ShiftScreenButton active={screen === 'detail'} disabled={!selectedHandover} label="Vardiya Detay" onClick={() => setScreen('detail')} />
@@ -551,7 +537,7 @@ function ShiftsView({ apiBaseUrl, selectedHandoverNo, token }: ShiftsViewProps) 
         {screen === 'openItems' ? renderOpenItemsScreen() : null}
       </div>
 
-      <div className="mt-4 border border-[#C6C6CD] bg-[#F6F3F5] p-3 text-[13px] text-[#45464D]">{message}</div>
+      <div className="mt-4"><StatusMessage busy={isLoading} message={message} /></div>
     </section>
   )
 
@@ -642,8 +628,8 @@ function ShiftsView({ apiBaseUrl, selectedHandoverNo, token }: ShiftsViewProps) 
               </tbody>
             </table>
           </div>
-          {handovers.length === 0 ? <div className="p-8 text-center text-sm text-[#45464D]">Filtreye uygun vardiya devir teslim kaydı bulunamadı.</div> : null}
-          <div className="flex items-center justify-between border-t border-[#C6C6CD] bg-white p-3 text-[13px] text-[#45464D]"><span>Toplam {handovers.length} devir teslim kaydı gösteriliyor</span><span className="font-mono text-xs text-[#76777D]">API: /api/shifts/handovers</span></div>
+          {handovers.length === 0 ? <div className="p-8 text-center text-sm text-[#45464D]">{isLoading ? 'Vardiya devir teslim kayıtları yükleniyor...' : 'Filtreye uygun vardiya devir teslim kaydı bulunamadı.'}</div> : null}
+          <div className="flex items-center justify-between border-t border-[#C6C6CD] bg-white p-3 text-[13px] text-[#45464D]"><span>Toplam {handovers.length} devir teslim kaydı gösteriliyor</span><span className="text-xs text-[#76777D]">Vardiya operasyon kayıtları</span></div>
         </section>
       </>
     )

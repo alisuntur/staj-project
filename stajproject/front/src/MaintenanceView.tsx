@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import ExecutiveReportDownload from './ExecutiveReportDownload'
+import { requestJson } from './apiClient'
+import { StatusMessage } from './UiState'
 
 type MaintenanceViewProps = {
   apiBaseUrl: string
@@ -199,17 +201,9 @@ function MaintenanceView({ apiBaseUrl, token }: MaintenanceViewProps) {
       setIsLoading(true)
       try {
         async function initialRequest<T>(path: string): Promise<T> {
-          const response = await fetch(`${apiBaseUrl}${path}`, {
+          return requestJson<T>(`${apiBaseUrl}${path}`, {
             headers: { Authorization: `Bearer ${token}` },
           })
-          const text = await response.text()
-          const payload = text ? JSON.parse(text) : null
-
-          if (!response.ok) {
-            throw new Error((payload as { message?: string } | null)?.message ?? `API isteği başarısız: ${response.status}`)
-          }
-
-          return payload as T
         }
 
         const [locationData, equipmentData, userData, planData, recordData] = await Promise.all([
@@ -261,15 +255,7 @@ function MaintenanceView({ apiBaseUrl, token }: MaintenanceViewProps) {
       headers.set('Content-Type', 'application/json')
     }
 
-    const response = await fetch(`${apiBaseUrl}${path}`, { ...options, headers })
-    const text = await response.text()
-    const payload = text ? JSON.parse(text) : null
-
-    if (!response.ok) {
-      throw new Error((payload as { message?: string } | null)?.message ?? `API isteği başarısız: ${response.status}`)
-    }
-
-    return payload as T
+    return requestJson<T>(`${apiBaseUrl}${path}`, { ...options, headers })
   }
 
   async function loadPlans(currentFilters: MaintenanceFilters = filters) {
@@ -491,7 +477,7 @@ function MaintenanceView({ apiBaseUrl, token }: MaintenanceViewProps) {
           <p className="mt-2 text-[15px] leading-5 text-[#45464D]">Planlı bakım faaliyetlerini oluştur, durumunu ilerlet ve tamamlanan işleri geçmişe işle.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isLoading} fileBaseName="bakim-yonetici-raporu" label="Rapor" path="/api/exports/maintenance" token={token} onMessage={setMessage} />
+          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isLoading} fileBaseName="bakim-yonetici-raporu" label="Bakım Raporu" path="/api/exports/maintenance" token={token} onMessage={setMessage} />
           <MaintenanceScreenButton active={screen === 'plans'} label="Bakım Planları" onClick={() => setScreen('plans')} />
           <MaintenanceScreenButton active={screen === 'new'} label="Yeni Bakım Planı" onClick={startCreatePlan} />
           <MaintenanceScreenButton active={screen === 'detail'} disabled={!selectedPlan} label="Bakım Detay" onClick={() => setScreen('detail')} />
@@ -506,7 +492,7 @@ function MaintenanceView({ apiBaseUrl, token }: MaintenanceViewProps) {
         {screen === 'history' ? renderHistoryScreen() : null}
       </div>
 
-      <div className="mt-4 border border-[#C6C6CD] bg-[#F6F3F5] p-3 text-[13px] text-[#45464D]">{message}</div>
+      <div className="mt-4"><StatusMessage busy={isLoading} message={message} /></div>
     </section>
   )
 
@@ -577,8 +563,8 @@ function MaintenanceView({ apiBaseUrl, token }: MaintenanceViewProps) {
               </tbody>
             </table>
           </div>
-          {plans.length === 0 ? <div className="p-8 text-center text-sm text-[#45464D]">Filtreye uygun bakım planı bulunamadı.</div> : null}
-          <div className="flex items-center justify-between border-t border-[#C6C6CD] bg-white p-3 text-[13px] text-[#45464D]"><span>Toplam {plans.length} bakım planı gösteriliyor</span><span className="font-mono text-xs text-[#76777D]">API: /api/maintenance/plans</span></div>
+          {plans.length === 0 ? <div className="p-8 text-center text-sm text-[#45464D]">{isLoading ? 'Bakım planları yükleniyor...' : 'Filtreye uygun bakım planı bulunamadı.'}</div> : null}
+          <div className="flex items-center justify-between border-t border-[#C6C6CD] bg-white p-3 text-[13px] text-[#45464D]"><span>Toplam {plans.length} bakım planı gösteriliyor</span><span className="text-xs text-[#76777D]">Planlı bakım takibi</span></div>
         </section>
       </>
     )

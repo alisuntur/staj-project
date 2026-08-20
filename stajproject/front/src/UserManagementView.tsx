@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import ExecutiveReportDownload from './ExecutiveReportDownload'
+import { requestJson } from './apiClient'
+import { StatusMessage } from './UiState'
 
 type UserManagementViewProps = {
   apiBaseUrl: string
@@ -316,10 +318,10 @@ function UserManagementView({ apiBaseUrl, token }: UserManagementViewProps) {
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#45464D]">Admin Yönetimi</p>
           <h2 className="mt-1 text-3xl font-bold tracking-tight text-black">Kullanıcı Yönetimi</h2>
-          <p className="mt-2 text-[15px] text-[#45464D]">{message}</p>
+          <div className="mt-3"><StatusMessage busy={isLoading} message={message} /></div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isLoading} fileBaseName="kullanici-yonetici-raporu" label="Rapor" path="/api/exports/users" token={token} onMessage={setMessage} />
+          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isLoading} fileBaseName="kullanici-yonetici-raporu" label="Kullanıcı Raporu" path="/api/exports/users" token={token} onMessage={setMessage} />
           <button className="border border-[#3755C3] px-4 py-2 text-sm font-semibold text-[#3755C3] transition-colors hover:bg-[#DDE1FF] disabled:opacity-60" disabled={isLoading} type="button" onClick={handleRefresh}>Yenile</button>
         </div>
       </div>
@@ -370,7 +372,7 @@ function UserManagementView({ apiBaseUrl, token }: UserManagementViewProps) {
                 </tbody>
               </table>
             </div>
-            {filteredUsers.length === 0 ? <EmptyPanel text="Bu filtrelerle kullanıcı bulunamadı." /> : null}
+            {filteredUsers.length === 0 ? <EmptyPanel text={isLoading ? 'Kullanıcılar yükleniyor...' : 'Bu filtrelerle kullanıcı bulunamadı.'} /> : null}
           </section>
 
           {workload ? <UserDetailPanel workload={workload} /> : <EmptyPanel text="Kullanıcı detayını görmek için listeden kullanıcı seçin." />}
@@ -487,15 +489,7 @@ async function adminRequest<T>(apiBaseUrl: string, token: string, path: string, 
     headers.set('Content-Type', 'application/json')
   }
 
-  const response = await fetch(`${apiBaseUrl}${path}`, { ...options, headers })
-  const text = await response.text()
-  const payload = text ? JSON.parse(text) : null
-
-  if (!response.ok) {
-    throw new Error((payload as { message?: string } | null)?.message ?? `API isteği başarısız: ${response.status}`)
-  }
-
-  return payload as T
+  return requestJson<T>(`${apiBaseUrl}${path}`, { ...options, headers })
 }
 
 export default UserManagementView

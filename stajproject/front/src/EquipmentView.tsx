@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import ExecutiveReportDownload from './ExecutiveReportDownload'
+import { requestJson } from './apiClient'
+import { StatusMessage } from './UiState'
 
 type EquipmentViewProps = {
   apiBaseUrl: string
@@ -282,17 +284,9 @@ function EquipmentView({ apiBaseUrl, token }: EquipmentViewProps) {
       setIsLoading(true)
       try {
         async function initialRequest<T>(path: string): Promise<T> {
-          const response = await fetch(`${apiBaseUrl}${path}`, {
+          return requestJson<T>(`${apiBaseUrl}${path}`, {
             headers: { Authorization: `Bearer ${token}` },
           })
-          const text = await response.text()
-          const payload = text ? JSON.parse(text) : null
-
-          if (!response.ok) {
-            throw new Error((payload as { message?: string } | null)?.message ?? `API isteği başarısız: ${response.status}`)
-          }
-
-          return payload as T
         }
 
         const [locationData, systemData] = await Promise.all([
@@ -348,15 +342,7 @@ function EquipmentView({ apiBaseUrl, token }: EquipmentViewProps) {
       headers.set('Content-Type', 'application/json')
     }
 
-    const response = await fetch(`${apiBaseUrl}${path}`, { ...options, headers })
-    const text = await response.text()
-    const payload = text ? JSON.parse(text) : null
-
-    if (!response.ok) {
-      throw new Error((payload as { message?: string } | null)?.message ?? `API isteği başarısız: ${response.status}`)
-    }
-
-    return payload as T
+    return requestJson<T>(`${apiBaseUrl}${path}`, { ...options, headers })
   }
 
   async function loadEquipment(currentFilters: EquipmentFilters = filters, selectFirst = false) {
@@ -547,7 +533,7 @@ function EquipmentView({ apiBaseUrl, token }: EquipmentViewProps) {
       {screen === 'locationDetail' ? renderLocationDetailScreen() : null}
       </div>
 
-      <div className="mt-4 border border-[#C6C6CD] bg-[#F6F3F5] p-3 text-[13px] text-[#45464D]">{message}</div>
+      <div className="mt-4"><StatusMessage busy={isLoading} message={message} /></div>
     </section>
   )
 
@@ -559,7 +545,7 @@ function EquipmentView({ apiBaseUrl, token }: EquipmentViewProps) {
             <span className="material-symbols-outlined text-[18px]">refresh</span>
             Yenile
           </button>
-          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isLoading} fileBaseName="ekipman-yonetici-raporu" label="Rapor" path="/api/exports/equipment" token={token} onMessage={setMessage} />
+          <ExecutiveReportDownload apiBaseUrl={apiBaseUrl} disabled={isLoading} fileBaseName="ekipman-yonetici-raporu" label="Ekipman Raporu" path="/api/exports/equipment" token={token} onMessage={setMessage} />
           <button className="flex items-center gap-2 bg-black px-4 py-2 text-[13px] font-semibold text-white shadow-sm" type="button" onClick={startCreateEquipment}>
             <span className="material-symbols-outlined text-[18px]">add</span>
             Yeni Ekipman Ekle
@@ -633,14 +619,10 @@ function EquipmentView({ apiBaseUrl, token }: EquipmentViewProps) {
               </tbody>
             </table>
           </div>
+          {equipment.length === 0 ? <div className="p-8 text-center text-sm text-[#45464D]">{isLoading ? 'Ekipman kayıtları yükleniyor...' : 'Filtreye uygun ekipman kaydı bulunamadı.'}</div> : null}
           <div className="flex items-center justify-between border-t border-[#C6C6CD] bg-white p-3">
-            <span className="text-[13px] text-[#45464D]">Toplam {equipment.length} kayıttan 1-{Math.min(5, equipment.length)} arası gösteriliyor</span>
-            <div className="flex gap-1">
-              <button className="flex h-8 w-8 items-center justify-center border border-[#C6C6CD] text-[#76777D]" disabled type="button"><span className="material-symbols-outlined text-[18px]">chevron_left</span></button>
-              <button className="flex h-8 w-8 items-center justify-center bg-black text-sm text-white" type="button">1</button>
-              <button className="flex h-8 w-8 items-center justify-center border border-[#C6C6CD] text-[#45464D]" type="button">2</button>
-              <button className="flex h-8 w-8 items-center justify-center border border-[#C6C6CD] text-[#45464D]" type="button"><span className="material-symbols-outlined text-[18px]">chevron_right</span></button>
-            </div>
+            <span className="text-[13px] text-[#45464D]">Toplam {equipment.length} ekipman gösteriliyor</span>
+            <span className="text-xs text-[#76777D]">Filtrelenen varlık envanteri</span>
           </div>
         </section>
       </>
@@ -690,7 +672,6 @@ function EquipmentView({ apiBaseUrl, token }: EquipmentViewProps) {
           </AssetFieldLabel>
           <div className="mt-8 flex flex-wrap justify-end gap-3 border-t border-[#C6C6CD] pt-5">
             <button className="px-5 py-2 text-sm font-semibold text-[#45464D] hover:bg-[#E4E2E4]" type="button" onClick={() => setScreen('list')}>İptal</button>
-            <button className="border border-[#3755C3] px-6 py-2 text-sm font-semibold text-[#3755C3]" type="button" onClick={() => setMessage('Taslak demo kapsamında saklanmadı.')}>Taslak Olarak Kaydet</button>
             <button className="bg-black px-6 py-2 text-sm font-semibold text-white disabled:bg-[#76777D]" disabled={isLoading} type="button" onClick={handleSubmitEquipment}>Sisteme Ekle</button>
           </div>
         </section>
@@ -747,7 +728,7 @@ function EquipmentView({ apiBaseUrl, token }: EquipmentViewProps) {
                 <div className="mt-3 flex flex-wrap gap-4 text-[13px] text-[#45464D]"><span>{selectedEquipment.location.name}</span><span>Sistem: {selectedEquipment.technicalSystem.name}</span><span>Son Bakım: {lastMaintenance ? formatDate(lastMaintenance.completedAt) : '-'}</span></div>
               </div>
             </div>
-            <div className="flex gap-2"><button className="border border-[#76777D] bg-white px-5 py-2 font-semibold" type="button" onClick={() => setScreen('new')}>Düzenle</button><button className="bg-black px-5 py-2 font-semibold text-white" type="button">İş Emri Oluştur</button></div>
+            <div className="flex gap-2"><button className="border border-[#76777D] bg-white px-5 py-2 font-semibold" type="button" onClick={() => setScreen('new')}>Düzenle</button></div>
           </div>
         </section>
         <div className="mb-6 flex flex-wrap gap-6 border-b border-[#C6C6CD] text-lg font-medium text-[#45464D]">

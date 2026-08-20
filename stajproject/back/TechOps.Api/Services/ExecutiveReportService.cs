@@ -14,70 +14,124 @@ public interface IExecutiveReportService
 
 public sealed class ExecutiveReportService : IExecutiveReportService
 {
+    private static readonly XLColor BrandDark = XLColor.FromHtml("#111827");
+    private static readonly XLColor BrandBlue = XLColor.FromHtml("#3755C3");
+    private static readonly XLColor BrandBlueSoft = XLColor.FromHtml("#DDE1FF");
+    private static readonly XLColor BorderColor = XLColor.FromHtml("#D1D5DB");
+    private static readonly XLColor TextMuted = XLColor.FromHtml("#4B5563");
+    private static readonly XLColor SheetBackground = XLColor.FromHtml("#F8FAFC");
+    private static readonly XLColor RowStripe = XLColor.FromHtml("#F3F4F6");
+
     public byte[] BuildExcel(ExecutiveReportDocument report)
     {
         using var workbook = new XLWorkbook();
+        workbook.Properties.Title = report.Title;
+        workbook.Properties.Subject = report.Subtitle;
+        workbook.Properties.Author = "TechOps O&M";
+        workbook.Properties.Company = "TechOps";
+
         var summary = workbook.Worksheets.Add("Yonetici Ozeti");
+        summary.Style.Font.FontName = "Aptos";
+        summary.Style.Font.FontSize = 10;
+        summary.Style.Fill.BackgroundColor = SheetBackground;
+        summary.TabColor = BrandBlue;
 
-        summary.Cell(1, 1).Value = "TechOps O&M Yönetici Raporu";
-        summary.Range(1, 1, 1, 6).Merge().Style
-            .Font.SetBold()
-            .Font.SetFontSize(22)
-            .Font.SetFontColor(XLColor.White)
-            .Fill.SetBackgroundColor(XLColor.FromHtml("#111827"));
+        summary.Columns(1, 6).Width = 18;
+        summary.Row(1).Height = 30;
+        summary.Row(2).Height = 28;
 
-        summary.Cell(2, 1).Value = report.Title;
-        summary.Range(2, 1, 2, 6).Merge().Style.Font.SetBold().Font.SetFontSize(16);
-        summary.Cell(3, 1).Value = report.Subtitle;
-        summary.Range(3, 1, 3, 6).Merge().Style.Font.SetFontColor(XLColor.FromHtml("#4B5563"));
+        summary.Cell(1, 1).Value = "TechOps O&M";
+        summary.Cell(1, 5).Value = ModuleHeader(report.ModuleName);
+        summary.Range(1, 1, 2, 6).Style.Fill.BackgroundColor = BrandDark;
+        summary.Range(1, 1, 2, 6).Style.Font.FontColor = XLColor.White;
+        summary.Range(1, 1, 2, 6).Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+        summary.Range(1, 1, 1, 3).Merge().Style.Font.SetBold().Font.SetFontSize(18);
+        summary.Range(1, 5, 1, 6).Merge().Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+        summary.Range(1, 5, 1, 6).Style.Font.SetBold().Font.SetFontSize(11);
+        summary.Range(2, 1, 2, 6).Merge();
+        summary.Cell(2, 1).Value = "Operasyon, bakım, test, vardiya ve varlık yönetimi çıktı özeti";
+        summary.Cell(2, 1).Style.Font.FontColor = XLColor.FromHtml("#CBD5E1");
 
-        summary.Cell(5, 1).Value = "Modül";
-        summary.Cell(5, 2).Value = report.ModuleName;
-        summary.Cell(6, 1).Value = "Hazırlanan";
-        summary.Cell(6, 2).Value = report.PreparedFor;
-        summary.Cell(7, 1).Value = "Oluşturma";
-        summary.Cell(7, 2).Value = FormatDateTime(report.GeneratedAt);
-        summary.Range(5, 1, 7, 1).Style.Font.SetBold().Fill.SetBackgroundColor(XLColor.FromHtml("#E5E7EB"));
+        summary.Cell(4, 1).Value = report.Title;
+        summary.Range(4, 1, 4, 6).Merge().Style.Font.SetBold().Font.SetFontSize(20).Font.SetFontColor(BrandDark);
+        summary.Cell(5, 1).Value = report.Subtitle;
+        summary.Range(5, 1, 5, 6).Merge().Style.Font.SetFontColor(TextMuted);
 
-        var metricRow = 10;
-        summary.Cell(metricRow, 1).Value = "KPI";
-        summary.Range(metricRow, 1, metricRow, 6).Merge().Style.Font.SetBold().Font.SetFontColor(XLColor.White).Fill.SetBackgroundColor(XLColor.FromHtml("#1D4ED8"));
-        metricRow++;
+        AddInfoBox(summary, 7, 1, "Modül", report.ModuleName);
+        AddInfoBox(summary, 7, 3, "Hazırlanan", report.PreparedFor);
+        AddInfoBox(summary, 7, 5, "Oluşturma", FormatDateTime(report.GeneratedAt));
+
+        var metricRow = 12;
+        AddSectionTitle(summary, metricRow, "KPI Özeti");
+        metricRow += 2;
         for (var i = 0; i < report.Metrics.Count; i++)
         {
             var metric = report.Metrics[i];
             var column = (i % 3) * 2 + 1;
-            var row = metricRow + (i / 3) * 3;
+            var row = metricRow + (i / 3) * 4;
             summary.Cell(row, column).Value = metric.Label;
             summary.Cell(row + 1, column).Value = metric.Value;
             summary.Cell(row + 2, column).Value = metric.Note;
-            summary.Range(row, column, row + 2, column + 1).Merge(false).Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-            summary.Range(row, column, row, column + 1).Style.Font.SetBold().Fill.SetBackgroundColor(XLColor.FromHtml("#DBEAFE"));
-            summary.Range(row + 1, column, row + 1, column + 1).Style.Font.SetBold().Font.SetFontSize(18);
-            summary.Range(row + 2, column, row + 2, column + 1).Style.Font.SetFontColor(XLColor.FromHtml("#4B5563"));
+            var card = summary.Range(row, column, row + 2, column + 1);
+            card.Merge(false);
+            card.Style.Fill.BackgroundColor = XLColor.White;
+            card.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            card.Style.Border.OutsideBorderColor = BorderColor;
+            card.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            summary.Range(row, column, row, column + 1).Style.Font.SetBold().Font.SetFontColor(TextMuted).Font.SetFontSize(9);
+            summary.Range(row + 1, column, row + 1, column + 1).Style.Font.SetBold().Font.SetFontSize(22).Font.SetFontColor(BrandDark);
+            summary.Range(row + 2, column, row + 2, column + 1).Style.Font.SetFontColor(TextMuted).Font.SetFontSize(9);
         }
 
-        var filterRow = metricRow + Math.Max(1, (int)Math.Ceiling(report.Metrics.Count / 3m)) * 3 + 2;
-        summary.Cell(filterRow, 1).Value = "Filtre Özeti";
-        summary.Range(filterRow, 1, filterRow, 6).Merge().Style.Font.SetBold().Font.SetFontColor(XLColor.White).Fill.SetBackgroundColor(XLColor.FromHtml("#374151"));
+        var filterRow = metricRow + Math.Max(1, (int)Math.Ceiling(report.Metrics.Count / 3m)) * 4 + 1;
+        AddSectionTitle(summary, filterRow, "Filtre ve Kapsam");
+        filterRow += 2;
+        summary.Cell(filterRow, 1).Value = "Filtre";
+        summary.Cell(filterRow, 2).Value = "Değer";
+        summary.Range(filterRow, 1, filterRow, 6).Style.Font.SetBold().Font.SetFontColor(XLColor.White).Fill.SetBackgroundColor(BrandBlue);
         filterRow++;
         foreach (var filter in report.Filters)
         {
             summary.Cell(filterRow, 1).Value = filter.Label;
             summary.Cell(filterRow, 2).Value = filter.Value;
-            summary.Range(filterRow, 1, filterRow, 1).Style.Font.SetBold();
+            summary.Range(filterRow, 2, filterRow, 6).Merge();
+            summary.Range(filterRow, 1, filterRow, 6).Style.Fill.BackgroundColor = filterRow % 2 == 0 ? RowStripe : XLColor.White;
+            summary.Range(filterRow, 1, filterRow, 1).Style.Font.SetBold().Font.SetFontColor(BrandDark);
+            summary.Range(filterRow, 1, filterRow, 6).Style.Border.BottomBorder = XLBorderStyleValues.Hair;
+            summary.Range(filterRow, 1, filterRow, 6).Style.Border.BottomBorderColor = BorderColor;
             filterRow++;
         }
 
-        summary.Cell(filterRow + 2, 1).Value = "Hazırlayan";
-        summary.Cell(filterRow + 2, 3).Value = "Kontrol Eden";
-        summary.Cell(filterRow + 2, 5).Value = "Onaylayan";
-        summary.Range(filterRow + 3, 1, filterRow + 6, 2).Merge().Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-        summary.Range(filterRow + 3, 3, filterRow + 6, 4).Merge().Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
-        summary.Range(filterRow + 3, 5, filterRow + 6, 6).Merge().Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        var sectionRow = filterRow + 2;
+        AddSectionTitle(summary, sectionRow, "Rapor Bölümleri");
+        sectionRow += 2;
+        summary.Cell(sectionRow, 1).Value = "Bölüm";
+        summary.Cell(sectionRow, 4).Value = "Kayıt";
+        summary.Cell(sectionRow, 5).Value = "Açıklama";
+        summary.Range(sectionRow, 1, sectionRow, 6).Style.Font.SetBold().Font.SetFontColor(XLColor.White).Fill.SetBackgroundColor(BrandBlue);
+        sectionRow++;
+        foreach (var section in report.Sections)
+        {
+            summary.Cell(sectionRow, 1).Value = section.Title;
+            summary.Range(sectionRow, 1, sectionRow, 3).Merge();
+            summary.Cell(sectionRow, 4).Value = section.Rows.Count;
+            summary.Cell(sectionRow, 5).Value = string.IsNullOrWhiteSpace(section.Description) ? "-" : section.Description;
+            summary.Range(sectionRow, 5, sectionRow, 6).Merge();
+            summary.Range(sectionRow, 1, sectionRow, 6).Style.Fill.BackgroundColor = sectionRow % 2 == 0 ? RowStripe : XLColor.White;
+            summary.Range(sectionRow, 1, sectionRow, 6).Style.Border.BottomBorder = XLBorderStyleValues.Hair;
+            summary.Range(sectionRow, 1, sectionRow, 6).Style.Border.BottomBorderColor = BorderColor;
+            sectionRow++;
+        }
 
-        summary.Columns().AdjustToContents();
+        var signatureRow = sectionRow + 2;
+        AddSignatureBlock(summary, signatureRow, 1, "Hazırlayan");
+        AddSignatureBlock(summary, signatureRow, 3, "Kontrol Eden");
+        AddSignatureBlock(summary, signatureRow, 5, "Onaylayan");
+
+        summary.ColumnsUsed().Style.Alignment.WrapText = true;
+        summary.RowsUsed().Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
         summary.SheetView.FreezeRows(3);
+        ApplyPrintSettings(summary);
 
         foreach (var section in report.Sections)
         {
@@ -118,15 +172,23 @@ public sealed class ExecutiveReportService : IExecutiveReportService
     {
         var sheetName = NormalizeSheetName(section.Title);
         var worksheet = workbook.Worksheets.Add(sheetName);
+        worksheet.Style.Font.FontName = "Aptos";
+        worksheet.Style.Font.FontSize = 10;
+        worksheet.Style.Fill.BackgroundColor = SheetBackground;
+        worksheet.TabColor = BrandDark;
+
+        var lastColumn = Math.Max(1, section.Headers.Count);
         worksheet.Cell(1, 1).Value = section.Title;
-        worksheet.Range(1, 1, 1, Math.Max(1, section.Headers.Count)).Merge().Style
+        worksheet.Range(1, 1, 1, lastColumn).Merge().Style
             .Font.SetBold()
-            .Font.SetFontSize(16)
+            .Font.SetFontSize(17)
             .Font.SetFontColor(XLColor.White)
-            .Fill.SetBackgroundColor(XLColor.FromHtml("#111827"));
+            .Fill.SetBackgroundColor(BrandDark);
+        worksheet.Row(1).Height = 28;
 
         worksheet.Cell(2, 1).Value = section.Description;
-        worksheet.Range(2, 1, 2, Math.Max(1, section.Headers.Count)).Merge().Style.Font.SetFontColor(XLColor.FromHtml("#4B5563"));
+        worksheet.Range(2, 1, 2, lastColumn).Merge().Style.Font.SetFontColor(TextMuted);
+        worksheet.Row(2).Height = 24;
 
         for (var i = 0; i < section.Headers.Count; i++)
         {
@@ -135,7 +197,12 @@ public sealed class ExecutiveReportService : IExecutiveReportService
 
         if (section.Headers.Count > 0)
         {
-            worksheet.Range(4, 1, 4, section.Headers.Count).Style.Font.SetBold().Font.SetFontColor(XLColor.White).Fill.SetBackgroundColor(XLColor.FromHtml("#1D4ED8"));
+            worksheet.Range(4, 1, 4, section.Headers.Count).Style
+                .Font.SetBold()
+                .Font.SetFontColor(XLColor.White)
+                .Fill.SetBackgroundColor(BrandBlue)
+                .Alignment.SetHorizontal(XLAlignmentHorizontalValues.Center);
+            worksheet.Row(4).Height = 22;
         }
 
         for (var rowIndex = 0; rowIndex < section.Rows.Count; rowIndex++)
@@ -145,18 +212,88 @@ public sealed class ExecutiveReportService : IExecutiveReportService
             {
                 worksheet.Cell(rowIndex + 5, columnIndex + 1).Value = columnIndex < row.Count ? row[columnIndex] : string.Empty;
             }
+
+            worksheet.Range(rowIndex + 5, 1, rowIndex + 5, lastColumn).Style.Fill.BackgroundColor = rowIndex % 2 == 0 ? XLColor.White : RowStripe;
         }
 
         if (section.Rows.Count > 0 && section.Headers.Count > 0)
         {
             var range = worksheet.Range(4, 1, section.Rows.Count + 4, section.Headers.Count);
             range.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+            range.Style.Border.OutsideBorderColor = BorderColor;
             range.Style.Border.InsideBorder = XLBorderStyleValues.Hair;
-            worksheet.Range(5, 1, section.Rows.Count + 4, section.Headers.Count).SetAutoFilter();
+            range.Style.Border.InsideBorderColor = BorderColor;
+            range.SetAutoFilter();
+        }
+        else
+        {
+            worksheet.Cell(5, 1).Value = "Bu bölüm için kayıt bulunamadı.";
+            worksheet.Range(5, 1, 5, lastColumn).Merge().Style.Font.SetFontColor(TextMuted).Fill.SetBackgroundColor(XLColor.White);
         }
 
         worksheet.Columns().AdjustToContents();
+        foreach (var column in worksheet.ColumnsUsed())
+        {
+            if (column.Width < 14)
+            {
+                column.Width = 14;
+            }
+
+            if (column.Width > 42)
+            {
+                column.Width = 42;
+            }
+        }
+        worksheet.RowsUsed().Style.Alignment.WrapText = true;
+        worksheet.RowsUsed().Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
         worksheet.SheetView.FreezeRows(4);
+        ApplyPrintSettings(worksheet);
+    }
+
+    private static void AddInfoBox(IXLWorksheet worksheet, int row, int column, string label, string value)
+    {
+        worksheet.Cell(row, column).Value = label;
+        worksheet.Cell(row + 1, column).Value = value;
+        var range = worksheet.Range(row, column, row + 1, column + 1);
+        range.Merge(false);
+        range.Style.Fill.BackgroundColor = XLColor.White;
+        range.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        range.Style.Border.OutsideBorderColor = BorderColor;
+        worksheet.Range(row, column, row, column + 1).Style.Font.SetBold().Font.SetFontColor(TextMuted).Font.SetFontSize(9);
+        worksheet.Range(row + 1, column, row + 1, column + 1).Style.Font.SetBold().Font.SetFontColor(BrandDark).Font.SetFontSize(12);
+    }
+
+    private static void AddSectionTitle(IXLWorksheet worksheet, int row, string title)
+    {
+        worksheet.Cell(row, 1).Value = title;
+        worksheet.Range(row, 1, row, 6).Merge().Style
+            .Font.SetBold()
+            .Font.SetFontColor(XLColor.White)
+            .Fill.SetBackgroundColor(BrandBlue);
+    }
+
+    private static void AddSignatureBlock(IXLWorksheet worksheet, int row, int column, string title)
+    {
+        worksheet.Cell(row, column).Value = title;
+        worksheet.Range(row, column, row, column + 1).Merge().Style.Font.SetBold().Font.SetFontColor(BrandDark);
+        var signature = worksheet.Range(row + 1, column, row + 4, column + 1);
+        signature.Merge();
+        signature.Style.Fill.BackgroundColor = XLColor.White;
+        signature.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        signature.Style.Border.OutsideBorderColor = BorderColor;
+    }
+
+    private static void ApplyPrintSettings(IXLWorksheet worksheet)
+    {
+        worksheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+        worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
+        worksheet.PageSetup.FitToPages(1, 0);
+        worksheet.PageSetup.Margins.Top = 0.35;
+        worksheet.PageSetup.Margins.Bottom = 0.35;
+        worksheet.PageSetup.Margins.Left = 0.25;
+        worksheet.PageSetup.Margins.Right = 0.25;
+        worksheet.PageSetup.Footer.Right.AddText("TechOps O&M");
+        worksheet.PageSetup.Footer.Center.AddText("Sayfa &P / &N");
     }
 
     private static void BuildPdfHeader(IContainer container, ExecutiveReportDocument report)
@@ -223,14 +360,14 @@ public sealed class ExecutiveReportService : IExecutiveReportService
 
                     foreach (var header in headers)
                     {
-                        table.Cell().Background("#1D4ED8").Padding(4).Text(header).FontColor(Colors.White).Bold().FontSize(7);
+                        table.Cell().Background("#1D4ED8").Padding(4).Text(TruncateForPdf(header, 24)).FontColor(Colors.White).Bold().FontSize(7);
                     }
 
                     foreach (var row in section.Rows.Take(10))
                     {
                         for (var i = 0; i < headers.Count; i++)
                         {
-                            table.Cell().BorderBottom(0.5f).BorderColor("#E5E7EB").Padding(4).Text(i < row.Count ? row[i] : string.Empty).FontSize(7);
+                            table.Cell().BorderBottom(0.5f).BorderColor("#E5E7EB").Padding(4).Text(TruncateForPdf(i < row.Count ? row[i] : string.Empty, 80)).FontSize(7);
                         }
                     }
                 });
@@ -252,5 +389,15 @@ public sealed class ExecutiveReportService : IExecutiveReportService
         return normalized.Length <= 31 ? normalized : normalized[..31];
     }
 
+    private static string TruncateForPdf(string value, int maxLength)
+    {
+        var normalized = value.ReplaceLineEndings(" ").Trim();
+        return normalized.Length <= maxLength ? normalized : normalized[..Math.Max(0, maxLength - 3)] + "...";
+    }
+
     private static string FormatDateTime(DateTime value) => value.ToLocalTime().ToString("dd.MM.yyyy HH:mm");
+
+    private static string ModuleHeader(string moduleName) => string.IsNullOrWhiteSpace(moduleName)
+        ? "Yönetici Raporu"
+        : $"{moduleName.Trim()} Raporu";
 }

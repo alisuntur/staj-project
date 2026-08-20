@@ -536,7 +536,7 @@ public static class SeedData
                 OldValues = "{}",
                 NewValues = "{}",
                 IpAddress = $"10.10.0.{i % 200}",
-                UserAgent = "SyntheticDemo/1.0",
+                UserAgent = "TechOpsPortal/1.0",
                 CreatedAt = PresentationDateTime(i, 6)
             });
         }
@@ -547,19 +547,33 @@ public static class SeedData
     private static IReadOnlyList<Notification> BuildNotifications()
     {
         var notifications = new List<Notification>();
-        var types = new[] { NotificationType.Info, NotificationType.Warning, NotificationType.Critical };
+        var templates = new (NotificationType Type, string Title, string Message, string Entity)[]
+        {
+            (NotificationType.Critical, "Kritik arıza eskalasyonu", "Terminal A UPS hattında kritik öncelikli arıza için müdahale süresi aşıma yaklaştı. Atama ve yedek güç durumunu kontrol edin.", "Fault"),
+            (NotificationType.Warning, "Bakım planı yaklaşan son tarih", "HVAC santral bakımı için planlanan zaman penceresi yaklaşıyor. Sorumlu ekip ve malzeme hazırlığını doğrulayın.", "MaintenancePlan"),
+            (NotificationType.Info, "Yönetici raporu hazır", "Güncel operasyon özeti Excel ve PDF formatlarında indirilmeye hazır. Raporlama ekranından filtreli çıktıyı alabilirsiniz.", "Report"),
+            (NotificationType.Warning, "Vardiya devrinde açık iş var", "Gece vardiyasına devredilen açık iş maddeleri bulunuyor. Kritik notları ve takip edilecek ekipman listesini inceleyin.", "ShiftHandover"),
+            (NotificationType.Critical, "Başarısız test sonucu", "Jeneratör yük transfer testinde başarısız sonuç kaydedildi. Tekrar test ve düzeltici aksiyon planı oluşturulmalı.", "TestRecord"),
+            (NotificationType.Info, "Ekipman geçmişi güncellendi", "Seçili ekipmanın arıza, bakım ve test geçmişi yeni kayıtlarla güncellendi. Varlık yönetimi ekranından detayları görüntüleyin.", "Equipment"),
+            (NotificationType.Warning, "Tekrarlayan arıza eğilimi", "Aynı ekipmanda kısa aralıklarla tekrar eden arıza kayıtları tespit edildi. Kök neden analizi önerilir.", "Fault"),
+            (NotificationType.Info, "Bakım tamamlandı", "Planlı bakım kaydı tamamlandı ve operasyon geçmişine işlendi. Checklist ve kullanılan malzeme bilgileri rapora dahil edildi.", "MaintenancePlan"),
+            (NotificationType.Warning, "Bekleyen onay", "Kapatılmaya hazır çözümlenmiş arıza kayıtları bulunuyor. Yönetici kontrolü sonrası kayıtları kapatabilirsiniz.", "Fault"),
+            (NotificationType.Critical, "Kritik lokasyon yoğunluğu", "Terminal operasyon bölgesinde kritik ve yüksek öncelikli kayıt yoğunluğu arttı. Saha önceliklendirmesini gözden geçirin.", "Location"),
+            (NotificationType.Info, "Aktivite kaydı oluşturuldu", "Son kullanıcı işlemleri audit log'a işlendi. Bildirim ve aktivite merkezinden işlem izlerini takip edebilirsiniz.", "ActivityLog"),
+            (NotificationType.Warning, "Test tekrar planı gerekiyor", "Şartlı başarılı test sonucu için tekrar test planı öneriliyor. Sorumlu teknik personel ve tarih bilgisini kontrol edin.", "TestRecord")
+        };
 
         for (var i = 1001; i <= 1100; i++)
         {
-            var type = types[i % types.Length];
+            var template = templates[PositiveModulo(i, templates.Length)];
             notifications.Add(new Notification
             {
                 Id = NotificationId(i),
                 UserId = UserId(1 + (i % 4)),
-                Title = type == NotificationType.Critical ? "Kritik operasyon uyarısı" : type == NotificationType.Warning ? "Takip gerektiren kayıt" : "Bilgilendirme",
-                Message = "Sentetik demo bildirimi: raporlama ve test senaryoları için oluşturuldu.",
-                Type = type,
-                RelatedEntityName = i % 2 == 0 ? "Fault" : "MaintenancePlan",
+                Title = template.Title,
+                Message = template.Message,
+                Type = template.Type,
+                RelatedEntityName = template.Entity,
                 RelatedEntityId = null,
                 IsRead = i % 3 == 0,
                 CreatedAt = PresentationDateTime(i, 9)
