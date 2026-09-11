@@ -43,6 +43,8 @@ public sealed class User : BaseEntity
     public ICollection<TestRecord> TestRecords { get; set; } = new List<TestRecord>();
     public ICollection<ShiftHandover> ShiftHandoversFrom { get; set; } = new List<ShiftHandover>();
     public ICollection<ShiftHandover> ShiftHandoversTo { get; set; } = new List<ShiftHandover>();
+    public ICollection<ShiftAssignment> ShiftAssignments { get; set; } = new List<ShiftAssignment>();
+    public ICollection<ShiftAssignment> CreatedShiftAssignments { get; set; } = new List<ShiftAssignment>();
     public ICollection<AuditLog> AuditLogs { get; set; } = new List<AuditLog>();
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
 }
@@ -245,6 +247,18 @@ public sealed class ShiftItem : BaseEntity
     public Fault? Fault { get; set; }
     public Equipment? Equipment { get; set; }
     public MaintenancePlan? MaintenancePlan { get; set; }
+}
+
+public sealed class ShiftAssignment : BaseEntity
+{
+    public Guid UserId { get; set; }
+    public Guid CreatedByUserId { get; set; }
+    public ShiftType ShiftType { get; set; }
+    public DateOnly ShiftDate { get; set; }
+    public string? Notes { get; set; }
+
+    public User User { get; set; } = null!;
+    public User CreatedByUser { get; set; } = null!;
 }
 
 public sealed class AuditLog : BaseEntity

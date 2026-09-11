@@ -46,11 +46,11 @@ export default function ExecutiveReportDownload({ apiBaseUrl, token, label = 'Ra
 
   return (
     <div className="flex flex-wrap gap-2">
-      <button className="flex items-center gap-2 border border-[#3755C3] bg-white px-4 py-2 text-sm font-semibold text-[#3755C3] transition-colors hover:bg-[#DDE1FF] disabled:cursor-not-allowed disabled:opacity-50" disabled={disabled || isBusy} type="button" onClick={() => void download('xlsx')}>
+      <button className="flex items-center gap-2 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-2 text-sm font-bold text-[#2563EB] transition hover:bg-[#DBEAFE] disabled:cursor-not-allowed disabled:opacity-50" disabled={disabled || isBusy} type="button" onClick={() => void download('xlsx')}>
         <span className="material-symbols-outlined text-[18px]">table_chart</span>
         {activeFormat === 'xlsx' ? 'Hazırlanıyor...' : `${label} Excel`}
       </button>
-      <button className="flex items-center gap-2 border border-[#BA1A1A] bg-white px-4 py-2 text-sm font-semibold text-[#BA1A1A] transition-colors hover:bg-[#FFDAD6] disabled:cursor-not-allowed disabled:opacity-50" disabled={disabled || isBusy} type="button" onClick={() => void download('pdf')}>
+      <button className="flex items-center gap-2 rounded-xl border border-[#FECACA] bg-[#FFF7F7] px-4 py-2 text-sm font-bold text-[#DC2626] transition hover:bg-[#FEE2E2] disabled:cursor-not-allowed disabled:opacity-50" disabled={disabled || isBusy} type="button" onClick={() => void download('pdf')}>
         <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
         {activeFormat === 'pdf' ? 'Hazırlanıyor...' : `${label} PDF`}
       </button>

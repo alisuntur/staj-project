@@ -38,6 +38,8 @@ type UserFormState = {
   department: string
 }
 
+type UserSubView = 'list' | 'tasks'
+
 type WorkloadSummary = {
   openFaultCount: number
   openMaintenanceCount: number
@@ -164,6 +166,7 @@ function UserManagementView({ apiBaseUrl, token }: UserManagementViewProps) {
   const [selectedUserId, setSelectedUserId] = useState('')
   const [workload, setWorkload] = useState<UserWorkload | null>(null)
   const [form, setForm] = useState<UserFormState>(emptyForm)
+  const [activeSubView, setActiveSubView] = useState<UserSubView>('list')
   const [roleFilter, setRoleFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('active')
   const [isLoading, setIsLoading] = useState(false)
@@ -171,6 +174,9 @@ function UserManagementView({ apiBaseUrl, token }: UserManagementViewProps) {
 
   const filteredUsers = users.filter((user) => (!roleFilter || user.role === roleFilter) && (statusFilter === 'all' || (statusFilter === 'active' ? user.isActive : !user.isActive)))
   const selectedUser = users.find((user) => user.id === selectedUserId) ?? null
+  const selectedTaskCount = workload
+    ? workload.summary.openFaultCount + workload.summary.openMaintenanceCount + workload.summary.openTestCount + workload.summary.shiftHandoverCount
+    : 0
 
   useEffect(() => {
     let ignore = false
@@ -240,8 +246,11 @@ function UserManagementView({ apiBaseUrl, token }: UserManagementViewProps) {
     return detail
   }
 
-  async function handleSelectUser(userId: string) {
+  async function handleSelectUser(userId: string, showTasks = false) {
     setSelectedUserId(userId)
+    if (showTasks) {
+      setActiveSubView('tasks')
+    }
     setIsLoading(true)
     try {
       const detail = await loadWorkload(userId)
@@ -326,59 +335,73 @@ function UserManagementView({ apiBaseUrl, token }: UserManagementViewProps) {
         </div>
       </div>
 
+      <div className="mb-5 flex flex-wrap gap-2 rounded-lg border border-[#C6C6CD] bg-white p-1 shadow-[0px_1px_3px_rgba(15,23,42,0.08)]">
+        <SubViewTab active={activeSubView === 'list'} label="Liste" meta={`${filteredUsers.length} kullanıcı`} onClick={() => setActiveSubView('list')} />
+        <SubViewTab active={activeSubView === 'tasks'} label="Görevlerim" meta={selectedUser ? `${selectedTaskCount} açık iş` : 'Kullanıcı seçin'} onClick={() => setActiveSubView('tasks')} />
+      </div>
+
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-6">
-          <section className="rounded-lg border border-[#C6C6CD] bg-white p-4 shadow-[0px_1px_3px_rgba(15,23,42,0.08)]">
-            <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h3 className="text-xl font-bold text-black">Kullanıcı Listesi</h3>
-                <p className="mt-1 text-sm text-[#45464D]">Rol ve aktiflik durumuna göre sistem kullanıcıları.</p>
+          {activeSubView === 'list' ? (
+            <section className="rounded-lg border border-[#C6C6CD] bg-white p-4 shadow-[0px_1px_3px_rgba(15,23,42,0.08)]">
+              <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-black">Kullanıcı Listesi</h3>
+                  <p className="mt-1 text-sm text-[#45464D]">Rol ve aktiflik durumuna göre sistem kullanıcıları.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <select className="report-input w-auto min-w-44" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
+                    <option value="">Tüm Roller</option>
+                    {roles.map((role) => <option key={role.id} value={role.name}>{role.name}</option>)}
+                  </select>
+                  <select className="report-input w-auto min-w-36" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                    <option value="all">Tümü</option>
+                    <option value="active">Aktif</option>
+                    <option value="passive">Pasif</option>
+                  </select>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <select className="report-input w-auto min-w-44" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
-                  <option value="">Tüm Roller</option>
-                  {roles.map((role) => <option key={role.id} value={role.name}>{role.name}</option>)}
-                </select>
-                <select className="report-input w-auto min-w-36" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-                  <option value="all">Tümü</option>
-                  <option value="active">Aktif</option>
-                  <option value="passive">Pasif</option>
-                </select>
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left text-sm">
-                <thead className="report-table-head">
-                  <tr>
-                    <th className="p-3">Kullanıcı</th>
-                    <th className="p-3">Rol</th>
-                    <th className="p-3">Departman</th>
-                    <th className="p-3">Durum</th>
-                    <th className="p-3">Son Giriş</th>
-                    <th className="p-3 text-right">İşlem</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredUsers.map((user) => (
-                    <tr className={`${selectedUserId === user.id ? 'bg-[#DDE1FF]/40' : 'bg-white'} border-b border-[#C6C6CD]`} key={user.id}>
-                      <td className="p-3"><button className="text-left" type="button" onClick={() => handleSelectUser(user.id)}><span className="block font-bold text-black">{user.fullName}</span><span className="font-mono text-xs text-[#76777D]">{user.username} • {user.email}</span></button></td>
-                      <td className="p-3 text-[#45464D]">{user.role}</td>
-                      <td className="p-3 text-[#45464D]">{user.department ?? '-'}</td>
-                      <td className="p-3"><StatusBadge active={user.isActive} /></td>
-                      <td className="p-3 font-mono text-xs text-[#45464D]">{formatDateTime(user.lastLoginAt)}</td>
-                      <td className="p-3 text-right"><div className="flex justify-end gap-2"><button className="border border-[#C6C6CD] px-3 py-1.5 text-xs font-semibold text-[#1B1B1D] hover:bg-[#F6F3F5]" type="button" onClick={() => handleSelectUser(user.id)}>Detay</button><button className="border border-[#C6C6CD] px-3 py-1.5 text-xs font-semibold text-[#45464D] hover:bg-[#F6F3F5]" disabled={isLoading} type="button" onClick={() => handleToggleStatus(user)}>{user.isActive ? 'Pasifleştir' : 'Aktifleştir'}</button></div></td>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead className="report-table-head">
+                    <tr>
+                      <th className="p-3">Kullanıcı</th>
+                      <th className="p-3">Rol</th>
+                      <th className="p-3">Departman</th>
+                      <th className="p-3">Durum</th>
+                      <th className="p-3">Son Giriş</th>
+                      <th className="p-3 text-right">İşlem</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {filteredUsers.length === 0 ? <EmptyPanel text={isLoading ? 'Kullanıcılar yükleniyor...' : 'Bu filtrelerle kullanıcı bulunamadı.'} /> : null}
-          </section>
-
-          {workload ? <UserDetailPanel workload={workload} /> : <EmptyPanel text="Kullanıcı detayını görmek için listeden kullanıcı seçin." />}
+                  </thead>
+                  <tbody>
+                    {filteredUsers.map((user) => (
+                      <tr className={`${selectedUserId === user.id ? 'bg-[#DDE1FF]/40' : 'bg-white'} border-b border-[#C6C6CD]`} key={user.id}>
+                        <td className="p-3"><button className="text-left" type="button" onClick={() => handleSelectUser(user.id)}><span className="block font-bold text-black">{user.fullName}</span><span className="font-mono text-xs text-[#76777D]">{user.username} • {user.email}</span></button></td>
+                        <td className="p-3 text-[#45464D]">{user.role}</td>
+                        <td className="p-3 text-[#45464D]">{user.department ?? '-'}</td>
+                        <td className="p-3"><StatusBadge active={user.isActive} /></td>
+                        <td className="p-3 font-mono text-xs text-[#45464D]">{formatDateTime(user.lastLoginAt)}</td>
+                        <td className="p-3 text-right"><div className="flex justify-end gap-2"><button className="border border-[#C6C6CD] px-3 py-1.5 text-xs font-semibold text-[#1B1B1D] hover:bg-[#F6F3F5]" type="button" onClick={() => handleSelectUser(user.id, true)}>Detay</button><button className="border border-[#C6C6CD] px-3 py-1.5 text-xs font-semibold text-[#45464D] hover:bg-[#F6F3F5]" disabled={isLoading} type="button" onClick={() => handleToggleStatus(user)}>{user.isActive ? 'Pasifleştir' : 'Aktifleştir'}</button></div></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {filteredUsers.length === 0 ? <EmptyPanel text={isLoading ? 'Kullanıcılar yükleniyor...' : 'Bu filtrelerle kullanıcı bulunamadı.'} /> : null}
+            </section>
+          ) : workload ? <UserDetailPanel workload={workload} /> : <EmptyPanel text="Kullanıcı detayını görmek için listeden kullanıcı seçin." />}
         </div>
 
         <aside className="space-y-6">
+          {selectedUser ? (
+            <section className="rounded-lg border border-[#C6C6CD] bg-[#F0EDEF] p-5">
+              <h3 className="text-lg font-bold text-black">Seçili Kullanıcı</h3>
+              <p className="mt-3 text-xl font-bold text-black">{selectedUser.fullName}</p>
+              <p className="font-mono text-xs text-[#45464D]">{selectedUser.username}</p>
+              <div className="mt-4 grid gap-2 text-sm text-[#45464D]"><p><strong className="text-black">Rol:</strong> {selectedUser.role}</p><p><strong className="text-black">E-posta:</strong> {selectedUser.email}</p><p><strong className="text-black">Unvan:</strong> {selectedUser.title ?? '-'}</p><p><strong className="text-black">Departman:</strong> {selectedUser.department ?? '-'}</p></div>
+            </section>
+          ) : null}
+
           <section className="rounded-lg border border-[#C6C6CD] bg-white p-5 shadow-[0px_1px_3px_rgba(15,23,42,0.08)]">
             <h3 className="text-xl font-bold text-black">Yeni Kullanıcı Oluştur</h3>
             <p className="mt-1 text-sm text-[#45464D]">Bu form yalnızca Admin rolüne açıktır.</p>
@@ -393,19 +416,14 @@ function UserManagementView({ apiBaseUrl, token }: UserManagementViewProps) {
             </div>
             <button className="mt-5 w-full bg-black px-4 py-2 text-sm font-semibold text-white disabled:bg-[#76777D]" disabled={isLoading} type="button" onClick={handleCreateUser}>Kullanıcı Oluştur</button>
           </section>
-
-          {selectedUser ? (
-            <section className="rounded-lg border border-[#C6C6CD] bg-[#F0EDEF] p-5">
-              <h3 className="text-lg font-bold text-black">Seçili Kullanıcı</h3>
-              <p className="mt-3 text-xl font-bold text-black">{selectedUser.fullName}</p>
-              <p className="font-mono text-xs text-[#45464D]">{selectedUser.username}</p>
-              <div className="mt-4 grid gap-2 text-sm text-[#45464D]"><p><strong className="text-black">Rol:</strong> {selectedUser.role}</p><p><strong className="text-black">E-posta:</strong> {selectedUser.email}</p><p><strong className="text-black">Unvan:</strong> {selectedUser.title ?? '-'}</p><p><strong className="text-black">Departman:</strong> {selectedUser.department ?? '-'}</p></div>
-            </section>
-          ) : null}
         </aside>
       </div>
     </section>
   )
+}
+
+function SubViewTab({ active, label, meta, onClick }: { active: boolean; label: string; meta: string; onClick: () => void }) {
+  return <button className={`${active ? 'bg-black text-white' : 'bg-[#FCF8FA] text-[#45464D] hover:bg-[#F0EDEF]'} flex min-w-48 flex-1 items-center justify-between gap-3 rounded-md px-4 py-3 text-left transition-colors md:flex-none`} type="button" onClick={onClick}><span className="font-bold">{label}</span><span className={`${active ? 'text-[#DDE1FF]' : 'text-[#76777D]'} text-xs font-semibold`}>{meta}</span></button>
 }
 
 function UserDetailPanel({ workload }: { workload: UserWorkload }) {

@@ -13228,6 +13228,50 @@ namespace TechOps.Api.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TechOps.Api.Entities.ShiftAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateOnly>("ShiftDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ShiftType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("ShiftDate");
+
+                    b.HasIndex("ShiftType");
+
+                    b.HasIndex("UserId", "ShiftDate")
+                        .IsUnique();
+
+                    b.ToTable("ShiftAssignments");
+                });
+
             modelBuilder.Entity("TechOps.Api.Entities.ShiftHandover", b =>
                 {
                     b.Property<Guid>("Id")
@@ -21292,6 +21336,25 @@ namespace TechOps.Api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("TechOps.Api.Entities.ShiftAssignment", b =>
+                {
+                    b.HasOne("TechOps.Api.Entities.User", "CreatedByUser")
+                        .WithMany("CreatedShiftAssignments")
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TechOps.Api.Entities.User", "User")
+                        .WithMany("ShiftAssignments")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("TechOps.Api.Entities.ShiftHandover", b =>
                 {
                     b.HasOne("TechOps.Api.Entities.User", "HandoverFromUser")
@@ -21471,6 +21534,8 @@ namespace TechOps.Api.Migrations
 
                     b.Navigation("CreatedMaintenancePlans");
 
+                    b.Navigation("CreatedShiftAssignments");
+
                     b.Navigation("FaultActions");
 
                     b.Navigation("MaintenanceRecords");
@@ -21486,6 +21551,8 @@ namespace TechOps.Api.Migrations
                     b.Navigation("ShiftHandoversFrom");
 
                     b.Navigation("ShiftHandoversTo");
+
+                    b.Navigation("ShiftAssignments");
 
                     b.Navigation("TestRecords");
                 });

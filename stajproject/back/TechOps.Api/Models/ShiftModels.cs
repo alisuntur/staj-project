@@ -109,6 +109,21 @@ public sealed class ShiftEquipmentOptionDto
     public string Status { get; set; } = string.Empty;
 }
 
+public sealed class ShiftAssignmentDto
+{
+    public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+    public string UserName { get; set; } = string.Empty;
+    public string UserRole { get; set; } = string.Empty;
+    public string? UserTitle { get; set; }
+    public string? UserDepartment { get; set; }
+    public string ShiftType { get; set; } = string.Empty;
+    public DateOnly ShiftDate { get; set; }
+    public string? Notes { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+}
+
 public sealed class CreateShiftHandoverRequest
 {
     public string ShiftType { get; set; } = string.Empty;
@@ -134,4 +149,12 @@ public sealed class CreateShiftItemRequest
 public sealed class UpdateShiftItemStatusRequest
 {
     public bool IsCompleted { get; set; } = true;
+}
+
+public sealed class SaveShiftAssignmentRequest
+{
+    public Guid UserId { get; set; }
+    public string ShiftType { get; set; } = string.Empty;
+    public DateOnly ShiftDate { get; set; }
+    public string? Notes { get; set; }
 }

@@ -7,9 +7,10 @@ type ShiftsViewProps = {
   apiBaseUrl: string
   selectedHandoverNo?: string | null
   token: string
+  user: { role: string } | null
 }
 
-type ShiftScreen = 'list' | 'new' | 'detail' | 'openItems'
+type ShiftScreen = 'list' | 'new' | 'detail' | 'openItems' | 'schedule'
 type ShiftType = 'Morning' | 'Evening' | 'Night'
 type ShiftItemType = 'OpenFault' | 'OngoingWork' | 'EquipmentToWatch' | 'PendingMaintenance' | 'CriticalNote'
 type FaultPriority = 'Low' | 'Medium' | 'High' | 'Critical'
@@ -112,6 +113,20 @@ type ShiftOpenItems = {
   openShiftItems: ShiftItem[]
 }
 
+type ShiftAssignment = {
+  id: string
+  userId: string
+  userName: string
+  userRole: string
+  userTitle?: string | null
+  userDepartment?: string | null
+  shiftType: ShiftType
+  shiftDate: string
+  notes?: string | null
+  createdAt: string
+  updatedAt?: string | null
+}
+
 type ShiftFilters = {
   search: string
   shiftType: string
@@ -129,6 +144,18 @@ type ShiftFormState = {
   criticalNotes: string
 }
 
+type ShiftScheduleFilters = {
+  from: string
+  to: string
+}
+
+type ShiftAssignmentFormState = {
+  userId: string
+  shiftType: ShiftType
+  shiftDate: string
+  notes: string
+}
+
 type DraftShiftItem = {
   localId: string
   itemType: ShiftItemType
@@ -142,6 +169,8 @@ type DraftShiftItem = {
 
 const shiftTypes: ShiftType[] = ['Morning', 'Evening', 'Night']
 const priorities: FaultPriority[] = ['Low', 'Medium', 'High', 'Critical']
+const scheduleManagerRoles = ['Admin', 'Yönetici']
+const scheduleAssignableRoles = ['Admin', 'Yönetici', 'Teknik Personel']
 
 const shiftLabels: Record<ShiftType, string> = {
   Morning: 'Sabah',
@@ -193,18 +222,23 @@ const defaultFilters: ShiftFilters = {
   hasOpenItems: '',
 }
 
-function ShiftsView({ apiBaseUrl, selectedHandoverNo, token }: ShiftsViewProps) {
+function ShiftsView({ apiBaseUrl, selectedHandoverNo, token, user }: ShiftsViewProps) {
   const [screen, setScreen] = useState<ShiftScreen>('list')
   const [handovers, setHandovers] = useState<ShiftHandoverListItem[]>([])
   const [users, setUsers] = useState<UserListItem[]>([])
   const [openItems, setOpenItems] = useState<ShiftOpenItems>(createEmptyOpenItems())
+  const [assignments, setAssignments] = useState<ShiftAssignment[]>([])
   const [selectedHandover, setSelectedHandover] = useState<ShiftHandoverDetail | null>(null)
   const [filters, setFilters] = useState<ShiftFilters>(defaultFilters)
+  const [scheduleFilters, setScheduleFilters] = useState<ShiftScheduleFilters>(createDefaultScheduleFilters())
   const [form, setForm] = useState<ShiftFormState>(createEmptyForm())
+  const [assignmentForm, setAssignmentForm] = useState<ShiftAssignmentFormState>(createEmptyAssignmentForm())
   const [draftItems, setDraftItems] = useState<DraftShiftItem[]>([])
   const [manualItem, setManualItem] = useState<DraftShiftItem>(createManualItem('OngoingWork'))
   const [isLoading, setIsLoading] = useState(false)
   const [message, setMessage] = useState('Vardiya devir teslim verileri yükleniyor...')
+  const canManageSchedule = Boolean(user && scheduleManagerRoles.includes(user.role))
+  const scheduleUsers = users.filter((item) => item.isActive && scheduleAssignableRoles.includes(item.role))
 
   useEffect(() => {
     let ignore = false
@@ -236,6 +270,7 @@ function ShiftsView({ apiBaseUrl, selectedHandoverNo, token }: ShiftsViewProps) 
           handoverFromUserId: current.handoverFromUserId || userData[0]?.id || '',
           handoverToUserId: current.handoverToUserId || userData[1]?.id || userData[0]?.id || '',
         }))
+        setAssignmentForm((current) => ({ ...current, userId: current.userId || userData.find((item) => item.role === 'Teknik Personel')?.id || userData[0]?.id || '' }))
         if (selectedHandoverNo) {
           const selectedHandover = handoverData.find((item) => item.handoverNo === selectedHandoverNo)
           if (selectedHandover) {
@@ -304,6 +339,104 @@ function ShiftsView({ apiBaseUrl, selectedHandoverNo, token }: ShiftsViewProps) 
     const data = await apiRequest<ShiftOpenItems>('/api/shifts/open-items')
     setOpenItems(data)
     return data
+  }
+
+  async function loadAssignments(currentFilters: ShiftScheduleFilters = scheduleFilters) {
+    const params = new URLSearchParams()
+    if (currentFilters.from) {
+      params.set('from', currentFilters.from)
+    }
+    if (currentFilters.to) {
+      params.set('to', currentFilters.to)
+    }
+
+    const path = params.size ? `/api/shifts/assignments?${params.toString()}` : '/api/shifts/assignments'
+    const data = await apiRequest<ShiftAssignment[]>(path)
+    setAssignments(data)
+    return data
+  }
+
+  async function openScheduleScreen() {
+    if (!canManageSchedule) {
+      return
+    }
+
+    setScreen('schedule')
+    setIsLoading(true)
+    try {
+      const data = await loadAssignments()
+      setMessage(`${data.length} personel vardiya ataması listelendi.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Vardiya takvimi alınamadı.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function handleApplyScheduleFilters() {
+    setIsLoading(true)
+    try {
+      const data = await loadAssignments(scheduleFilters)
+      setMessage(`${data.length} vardiya ataması takvim aralığında listelendi.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Vardiya takvimi filtrelenemedi.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function handleResetScheduleFilters() {
+    const nextFilters = createDefaultScheduleFilters()
+    setScheduleFilters(nextFilters)
+    setIsLoading(true)
+    try {
+      const data = await loadAssignments(nextFilters)
+      setMessage(`Takvim aralığı yenilendi. ${data.length} vardiya ataması listeleniyor.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Vardiya takvimi yenilenemedi.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function handleSaveAssignment() {
+    if (!assignmentForm.userId || !assignmentForm.shiftDate || !assignmentForm.shiftType) {
+      setMessage('Personel, vardiya türü ve tarih zorunludur.')
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const saved = await apiRequest<ShiftAssignment>('/api/shifts/assignments', {
+        method: 'POST',
+        body: JSON.stringify({
+          userId: assignmentForm.userId,
+          shiftType: assignmentForm.shiftType,
+          shiftDate: assignmentForm.shiftDate,
+          notes: assignmentForm.notes.trim() || null,
+        }),
+      })
+      await loadAssignments(scheduleFilters)
+      setAssignmentForm((current) => ({ ...current, notes: '' }))
+      setMessage(`${saved.userName} için ${formatDate(saved.shiftDate)} ${shiftLabels[saved.shiftType]} vardiyası kaydedildi.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Vardiya ataması kaydedilemedi.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function handleDeleteAssignment(assignment: ShiftAssignment) {
+    setIsLoading(true)
+    try {
+      await apiRequest<null>(`/api/shifts/assignments/${assignment.id}`, { method: 'DELETE' })
+      await loadAssignments(scheduleFilters)
+      setMessage(`${assignment.userName} için ${formatDate(assignment.shiftDate)} vardiya ataması kaldırıldı.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Vardiya ataması silinemedi.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   async function handleApplyFilters() {
@@ -527,6 +660,7 @@ function ShiftsView({ apiBaseUrl, selectedHandoverNo, token }: ShiftsViewProps) 
           <ShiftScreenButton active={screen === 'new'} label="Yeni Devir Teslim" onClick={() => void startCreateHandover()} />
           <ShiftScreenButton active={screen === 'detail'} disabled={!selectedHandover} label="Vardiya Detay" onClick={() => setScreen('detail')} />
           <ShiftScreenButton active={screen === 'openItems'} label="Devreden İşler" onClick={() => void openOpenItemsScreen()} />
+          {canManageSchedule ? <ShiftScreenButton active={screen === 'schedule'} label="Vardiya Takvimi" onClick={() => void openScheduleScreen()} /> : null}
         </div>
       </div>
 
@@ -535,6 +669,7 @@ function ShiftsView({ apiBaseUrl, selectedHandoverNo, token }: ShiftsViewProps) 
         {screen === 'new' ? renderNewScreen() : null}
         {screen === 'detail' ? renderDetailScreen() : null}
         {screen === 'openItems' ? renderOpenItemsScreen() : null}
+        {screen === 'schedule' && canManageSchedule ? renderScheduleScreen() : null}
       </div>
 
       <div className="mt-4"><StatusMessage busy={isLoading} message={message} /></div>
@@ -846,6 +981,129 @@ function ShiftsView({ apiBaseUrl, selectedHandoverNo, token }: ShiftsViewProps) 
       </section>
     )
   }
+
+  function renderScheduleScreen() {
+    const dayCards = buildScheduleDays(scheduleFilters.from, scheduleFilters.to, assignments)
+    const morningCount = assignments.filter((item) => item.shiftType === 'Morning').length
+    const eveningCount = assignments.filter((item) => item.shiftType === 'Evening').length
+    const nightCount = assignments.filter((item) => item.shiftType === 'Night').length
+
+    return (
+      <section className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-4">
+          <ShiftMetricCard icon="event_available" label="Planlanan Atama" value={String(assignments.length)} />
+          <ShiftMetricCard icon="wb_sunny" label="Sabah" value={String(morningCount)} />
+          <ShiftMetricCard icon="routine" label="Akşam" value={String(eveningCount)} />
+          <ShiftMetricCard icon="dark_mode" label="Gece" value={String(nightCount)} />
+        </div>
+
+        <section className="grid gap-6 xl:grid-cols-[1fr_380px]">
+          <div className="space-y-6">
+            <section className="border border-[#C6C6CD] bg-white p-5 shadow-[0px_1px_3px_rgba(15,23,42,0.08)]">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-[#45464D]">Yetkili alt modül</p>
+                  <h3 className="mt-1 text-xl font-bold text-black">Personel Vardiya Takvimi</h3>
+                  <p className="mt-2 text-sm text-[#45464D]">Bu ekran yalnızca Admin ve Yönetici rolleri için görünür. Personel günlük tek vardiyaya atanır.</p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-[160px_160px_auto_auto]">
+                  <ShiftFieldLabel label="Başlangıç">
+                    <input className="asset-input" type="date" value={scheduleFilters.from} onChange={(event) => setScheduleFilters((current) => ({ ...current, from: event.target.value }))} />
+                  </ShiftFieldLabel>
+                  <ShiftFieldLabel label="Bitiş">
+                    <input className="asset-input" type="date" value={scheduleFilters.to} onChange={(event) => setScheduleFilters((current) => ({ ...current, to: event.target.value }))} />
+                  </ShiftFieldLabel>
+                  <button className="h-10 self-end border border-[#76777D] bg-white px-4 text-[13px] font-semibold text-[#45464D]" disabled={isLoading} type="button" onClick={() => void handleResetScheduleFilters()}>Bu Hafta</button>
+                  <button className="h-10 self-end border border-[#3755C3] bg-[#3755C3] px-5 text-sm font-semibold text-white disabled:bg-[#76777D]" disabled={isLoading} type="button" onClick={() => void handleApplyScheduleFilters()}>Takvimi Getir</button>
+                </div>
+              </div>
+            </section>
+
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {dayCards.map((day) => (
+                <article className="min-h-56 border border-[#C6C6CD] bg-white p-4 shadow-[0px_1px_3px_rgba(15,23,42,0.08)]" key={day.date}>
+                  <div className="border-b border-[#C6C6CD] pb-3">
+                    <p className="font-mono text-xs font-bold text-[#3755C3]">{day.date}</p>
+                    <h4 className="mt-1 font-bold text-black">{formatDate(day.date)}</h4>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {shiftTypes.map((shiftType) => {
+                      const shiftAssignments = day.items.filter((item) => item.shiftType === shiftType)
+                      return (
+                        <div className="rounded-none border border-[#E4E2E4] bg-[#FCF8FA] p-3" key={`${day.date}-${shiftType}`}>
+                          <div className="mb-2 flex items-center justify-between gap-2"><ShiftBadge shiftType={shiftType} /><span className="font-mono text-xs font-bold text-[#76777D]">{shiftAssignments.length}</span></div>
+                          <div className="space-y-2">
+                            {shiftAssignments.map((assignment) => (
+                              <div className="border border-[#C6C6CD] bg-white p-2 text-sm" key={assignment.id}>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <p className="font-bold text-black">{assignment.userName}</p>
+                                    <p className="mt-1 text-xs text-[#45464D]">{assignment.userRole}{assignment.userDepartment ? ` • ${assignment.userDepartment}` : ''}</p>
+                                  </div>
+                                  <button className="text-[#BA1A1A]" disabled={isLoading} type="button" onClick={() => void handleDeleteAssignment(assignment)}><span className="material-symbols-outlined text-[18px]">delete</span></button>
+                                </div>
+                                {assignment.notes ? <p className="mt-2 text-xs leading-5 text-[#45464D]">{assignment.notes}</p> : null}
+                              </div>
+                            ))}
+                            {shiftAssignments.length === 0 ? <p className="text-xs text-[#76777D]">Atama yok</p> : null}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </article>
+              ))}
+            </section>
+          </div>
+
+          <aside className="space-y-5">
+            <section className="border border-[#C6C6CD] bg-white p-5 shadow-[0px_1px_3px_rgba(15,23,42,0.08)]">
+              <h3 className="border-b border-[#C6C6CD] pb-3 text-xl font-bold text-black">Vardiya Ata</h3>
+              <div className="mt-5 grid gap-4">
+                <ShiftFieldLabel label="Personel">
+                  <select className="asset-input" value={assignmentForm.userId} onChange={(event) => setAssignmentForm((current) => ({ ...current, userId: event.target.value }))}>
+                    <option value="">Personel seçin...</option>
+                    {scheduleUsers.map((item) => <option key={item.id} value={item.id}>{item.fullName} - {item.role}</option>)}
+                  </select>
+                </ShiftFieldLabel>
+                <ShiftFieldLabel label="Vardiya">
+                  <select className="asset-input" value={assignmentForm.shiftType} onChange={(event) => setAssignmentForm((current) => ({ ...current, shiftType: event.target.value as ShiftType }))}>
+                    {shiftTypes.map((shiftType) => <option key={shiftType} value={shiftType}>{shiftLabels[shiftType]}</option>)}
+                  </select>
+                </ShiftFieldLabel>
+                <ShiftFieldLabel label="Tarih">
+                  <input className="asset-input" type="date" value={assignmentForm.shiftDate} onChange={(event) => setAssignmentForm((current) => ({ ...current, shiftDate: event.target.value }))} />
+                </ShiftFieldLabel>
+                <ShiftFieldLabel label="Not">
+                  <textarea className="min-h-24 w-full border border-[#C6C6CD] bg-white p-3 text-sm outline-none focus:border-2 focus:border-[#3755C3]" placeholder="İzin, saha sorumluluğu veya özel vardiya notu..." value={assignmentForm.notes} onChange={(event) => setAssignmentForm((current) => ({ ...current, notes: event.target.value }))} />
+                </ShiftFieldLabel>
+              </div>
+              <button className="mt-5 flex w-full items-center justify-center gap-2 bg-black px-4 py-2 text-sm font-semibold text-white disabled:bg-[#76777D]" disabled={isLoading || scheduleUsers.length === 0} type="button" onClick={() => void handleSaveAssignment()}><span className="material-symbols-outlined text-[18px]">save</span>Vardiyayı Kaydet</button>
+              <p className="mt-3 text-xs leading-5 text-[#45464D]">Aynı personel ve tarih için kayıt varsa vardiya bilgisi güncellenir.</p>
+            </section>
+
+            <section className="overflow-hidden border border-[#C6C6CD] bg-white shadow-[0px_1px_3px_rgba(15,23,42,0.08)]">
+              <div className="border-b border-[#C6C6CD] p-4"><h3 className="font-bold text-black">Atama Listesi</h3></div>
+              <div className="max-h-[420px] overflow-y-auto">
+                {assignments.map((assignment) => (
+                  <div className="border-b border-[#E4E2E4] p-4 text-sm" key={assignment.id}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-bold text-black">{assignment.userName}</p>
+                        <p className="mt-1 text-xs text-[#45464D]">{formatDate(assignment.shiftDate)} • {shiftLabels[assignment.shiftType]}</p>
+                      </div>
+                      <button className="text-xs font-bold text-[#BA1A1A]" disabled={isLoading} type="button" onClick={() => void handleDeleteAssignment(assignment)}>Sil</button>
+                    </div>
+                  </div>
+                ))}
+                {assignments.length === 0 ? <p className="p-4 text-sm text-[#45464D]">Seçili aralıkta vardiya ataması bulunmuyor.</p> : null}
+              </div>
+            </section>
+          </aside>
+        </section>
+      </section>
+    )
+  }
 }
 
 function createEmptyOpenItems(): ShiftOpenItems {
@@ -860,6 +1118,20 @@ function createEmptyForm(): ShiftFormState {
     handoverToUserId: '',
     summary: '',
     criticalNotes: '',
+  }
+}
+
+function createDefaultScheduleFilters(): ShiftScheduleFilters {
+  const today = new Date()
+  return { from: toInputDate(today), to: toInputDate(addDays(today, 6)) }
+}
+
+function createEmptyAssignmentForm(): ShiftAssignmentFormState {
+  return {
+    userId: '',
+    shiftType: 'Morning',
+    shiftDate: new Date().toISOString().slice(0, 10),
+    notes: '',
   }
 }
 
@@ -884,12 +1156,29 @@ function createManualItem(itemType: ShiftItemType): DraftShiftItem {
   }
 }
 
+function buildScheduleDays(from: string, to: string, assignments: ShiftAssignment[]) {
+  const start = parseInputDate(from)
+  const end = parseInputDate(to)
+  if (!start || !end || start > end) {
+    return []
+  }
+
+  const days: { date: string; items: ShiftAssignment[] }[] = []
+  for (let date = start; date <= end && days.length < 46; date = addDays(date, 1)) {
+    const key = toInputDate(date)
+    days.push({ date: key, items: assignments.filter((item) => item.shiftDate === key) })
+  }
+
+  return days
+}
+
 function screenTitle(screen: ShiftScreen) {
   const titles: Record<ShiftScreen, string> = {
     list: 'Vardiya Devir Teslim',
     new: 'Yeni Vardiya Devir Teslim',
     detail: 'Vardiya Devir Detay',
     openItems: 'Devreden İşler',
+    schedule: 'Personel Vardiya Takvimi',
   }
 
   return titles[screen]
@@ -984,6 +1273,28 @@ function formatDateTime(value?: string | null) {
   }
 
   return new Intl.DateTimeFormat('tr-TR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
+}
+
+function parseInputDate(value: string) {
+  if (!value) {
+    return null
+  }
+
+  const date = new Date(`${value}T00:00:00`)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+function toInputDate(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 export default ShiftsView

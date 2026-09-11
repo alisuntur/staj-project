@@ -69,15 +69,18 @@ public sealed class ExecutiveReportService : IExecutiveReportService
             var metric = report.Metrics[i];
             var column = (i % 3) * 2 + 1;
             var row = metricRow + (i / 3) * 4;
-            summary.Cell(row, column).Value = metric.Label;
-            summary.Cell(row + 1, column).Value = metric.Value;
-            summary.Cell(row + 2, column).Value = metric.Note;
             var card = summary.Range(row, column, row + 2, column + 1);
-            card.Merge(false);
             card.Style.Fill.BackgroundColor = XLColor.White;
             card.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
             card.Style.Border.OutsideBorderColor = BorderColor;
             card.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+
+            summary.Range(row, column, row, column + 1).Merge(false);
+            summary.Range(row + 1, column, row + 1, column + 1).Merge(false);
+            summary.Range(row + 2, column, row + 2, column + 1).Merge(false);
+            summary.Cell(row, column).Value = metric.Label;
+            summary.Cell(row + 1, column).Value = metric.Value;
+            summary.Cell(row + 2, column).Value = metric.Note;
             summary.Range(row, column, row, column + 1).Style.Font.SetBold().Font.SetFontColor(TextMuted).Font.SetFontSize(9);
             summary.Range(row + 1, column, row + 1, column + 1).Style.Font.SetBold().Font.SetFontSize(22).Font.SetFontColor(BrandDark);
             summary.Range(row + 2, column, row + 2, column + 1).Style.Font.SetFontColor(TextMuted).Font.SetFontSize(9);
@@ -252,13 +255,15 @@ public sealed class ExecutiveReportService : IExecutiveReportService
 
     private static void AddInfoBox(IXLWorksheet worksheet, int row, int column, string label, string value)
     {
-        worksheet.Cell(row, column).Value = label;
-        worksheet.Cell(row + 1, column).Value = value;
         var range = worksheet.Range(row, column, row + 1, column + 1);
-        range.Merge(false);
         range.Style.Fill.BackgroundColor = XLColor.White;
         range.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
         range.Style.Border.OutsideBorderColor = BorderColor;
+
+        worksheet.Range(row, column, row, column + 1).Merge(false);
+        worksheet.Range(row + 1, column, row + 1, column + 1).Merge(false);
+        worksheet.Cell(row, column).Value = label;
+        worksheet.Cell(row + 1, column).Value = value;
         worksheet.Range(row, column, row, column + 1).Style.Font.SetBold().Font.SetFontColor(TextMuted).Font.SetFontSize(9);
         worksheet.Range(row + 1, column, row + 1, column + 1).Style.Font.SetBold().Font.SetFontColor(BrandDark).Font.SetFontSize(12);
     }

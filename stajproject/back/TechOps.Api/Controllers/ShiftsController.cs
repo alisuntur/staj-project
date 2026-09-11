@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using TechOps.Api.Data;
 using TechOps.Api.Entities;
 using TechOps.Api.Enums;
@@ -13,6 +14,7 @@ namespace TechOps.Api.Controllers;
 [Route("api/shifts")]
 public sealed class ShiftsController(AppDbContext dbContext) : ControllerBase
 {
+    private const string ShiftScheduleRoles = "Admin,Yönetici";
     private static readonly string[] ShiftUserRoles = ["Admin", "Yönetici", "Teknik Personel"];
 
     [HttpGet("handovers")]
@@ -218,6 +220,95 @@ public sealed class ShiftsController(AppDbContext dbContext) : ControllerBase
         return Ok(users);
     }
 
+    [Authorize(Roles = ShiftScheduleRoles)]
+    [HttpGet("assignments")]
+    public async Task<IActionResult> GetAssignments([FromQuery] DateOnly? from, [FromQuery] DateOnly? to, CancellationToken cancellationToken)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+        var startDate = from ?? to?.AddDays(-6) ?? today;
+        var endDate = to ?? from?.AddDays(6) ?? today.AddDays(6);
+
+        if (startDate > endDate)
+        {
+            return BadRequest(new { message = "Başlangıç tarihi bitiş tarihinden büyük olamaz." });
+        }
+
+        if (endDate.DayNumber - startDate.DayNumber > 45)
+        {
+            return BadRequest(new { message = "Vardiya takvimi en fazla 45 günlük aralıkla görüntülenebilir." });
+        }
+
+        var assignments = await AssignmentQuery()
+            .Where(x => x.ShiftDate >= startDate && x.ShiftDate <= endDate)
+            .OrderBy(x => x.ShiftDate)
+            .ThenBy(x => x.ShiftType)
+            .ThenBy(x => x.User.FullName)
+            .ToListAsync(cancellationToken);
+
+        return Ok(assignments.Select(MapAssignment).ToList());
+    }
+
+    [Authorize(Roles = ShiftScheduleRoles)]
+    [HttpPost("assignments")]
+    public async Task<IActionResult> SaveAssignment(SaveShiftAssignmentRequest request, CancellationToken cancellationToken)
+    {
+        var validation = await ValidateAssignmentRequest(request, cancellationToken);
+        if (validation.Error is not null)
+        {
+            return validation.Error;
+        }
+
+        if (!TryGetCurrentUserId(out var currentUserId))
+        {
+            return Unauthorized(new { message = "Oturum kullanıcı bilgisi okunamadı." });
+        }
+
+        var now = DateTime.UtcNow;
+        var assignment = await dbContext.ShiftAssignments
+            .SingleOrDefaultAsync(x => x.UserId == validation.User!.Id && x.ShiftDate == request.ShiftDate, cancellationToken);
+
+        if (assignment is null)
+        {
+            assignment = new ShiftAssignment
+            {
+                Id = Guid.NewGuid(),
+                UserId = validation.User!.Id,
+                CreatedByUserId = currentUserId,
+                ShiftDate = request.ShiftDate,
+                ShiftType = validation.ShiftType,
+                Notes = NormalizeOptional(request.Notes),
+                CreatedAt = now
+            };
+            dbContext.ShiftAssignments.Add(assignment);
+        }
+        else
+        {
+            assignment.ShiftType = validation.ShiftType;
+            assignment.Notes = NormalizeOptional(request.Notes);
+            assignment.UpdatedAt = now;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var saved = await AssignmentQuery().SingleAsync(x => x.Id == assignment.Id, cancellationToken);
+        return Ok(MapAssignment(saved));
+    }
+
+    [Authorize(Roles = ShiftScheduleRoles)]
+    [HttpDelete("assignments/{id:guid}")]
+    public async Task<IActionResult> DeleteAssignment(Guid id, CancellationToken cancellationToken)
+    {
+        var assignment = await dbContext.ShiftAssignments.SingleOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (assignment is null)
+        {
+            return NotFound(new { message = "Vardiya ataması bulunamadı." });
+        }
+
+        dbContext.ShiftAssignments.Remove(assignment);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return NoContent();
+    }
+
     [HttpPatch("items/{id:guid}/complete")]
     public async Task<IActionResult> UpdateItemStatus(Guid id, UpdateShiftItemStatusRequest request, CancellationToken cancellationToken)
     {
@@ -247,6 +338,40 @@ public sealed class ShiftsController(AppDbContext dbContext) : ControllerBase
         .Include(x => x.Fault)
         .Include(x => x.Equipment)
         .Include(x => x.MaintenancePlan);
+
+    private IQueryable<ShiftAssignment> AssignmentQuery() => dbContext.ShiftAssignments
+        .Include(x => x.User).ThenInclude(x => x.Role);
+
+    private async Task<(IActionResult? Error, ShiftType ShiftType, User? User)> ValidateAssignmentRequest(
+        SaveShiftAssignmentRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.UserId == Guid.Empty)
+        {
+            return (BadRequest(new { message = "Vardiya atanacak personel seçilmelidir." }), default, null);
+        }
+
+        if (request.ShiftDate == default)
+        {
+            return (BadRequest(new { message = "Vardiya tarihi zorunludur." }), default, null);
+        }
+
+        if (!TryParseShiftType(request.ShiftType, out var shiftType))
+        {
+            return (BadRequest(new { message = "Geçerli vardiya türü seçilmelidir." }), default, null);
+        }
+
+        var user = await dbContext.Users
+            .Include(x => x.Role)
+            .SingleOrDefaultAsync(x => x.Id == request.UserId && x.IsActive, cancellationToken);
+
+        if (user is null || !ShiftUserRoles.Contains(user.Role.Name))
+        {
+            return (BadRequest(new { message = "Vardiya yalnızca aktif yönetici veya teknik personele atanabilir." }), default, null);
+        }
+
+        return (null, shiftType, user);
+    }
 
     private async Task<(IActionResult? Error, ShiftType ShiftType, User? HandoverFromUser, User? HandoverToUser, List<ShiftItem> Items)> ValidateHandoverRequest(
         CreateShiftHandoverRequest request,
@@ -487,6 +612,21 @@ public sealed class ShiftsController(AppDbContext dbContext) : ControllerBase
         UpdatedAt = item.UpdatedAt
     };
 
+    private static ShiftAssignmentDto MapAssignment(ShiftAssignment assignment) => new()
+    {
+        Id = assignment.Id,
+        UserId = assignment.UserId,
+        UserName = assignment.User.FullName,
+        UserRole = assignment.User.Role.Name,
+        UserTitle = assignment.User.Title,
+        UserDepartment = assignment.User.Department,
+        ShiftType = assignment.ShiftType.ToString(),
+        ShiftDate = assignment.ShiftDate,
+        Notes = assignment.Notes,
+        CreatedAt = assignment.CreatedAt,
+        UpdatedAt = assignment.UpdatedAt
+    };
+
     private static bool TryParseShiftType(string? value, out ShiftType shiftType)
     {
         return Enum.TryParse(value?.Trim(), ignoreCase: true, out shiftType) && Enum.IsDefined(shiftType);
@@ -515,4 +655,9 @@ public sealed class ShiftsController(AppDbContext dbContext) : ControllerBase
     }
 
     private static string? NormalizeOptional(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private bool TryGetCurrentUserId(out Guid userId)
+    {
+        return Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out userId);
+    }
 }

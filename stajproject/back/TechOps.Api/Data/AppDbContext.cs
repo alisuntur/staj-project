@@ -18,6 +18,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<TestRecord> TestRecords => Set<TestRecord>();
     public DbSet<ShiftHandover> ShiftHandovers => Set<ShiftHandover>();
     public DbSet<ShiftItem> ShiftItems => Set<ShiftItem>();
+    public DbSet<ShiftAssignment> ShiftAssignments => Set<ShiftAssignment>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<Notification> Notifications => Set<Notification>();
 
@@ -194,6 +195,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.HasOne(x => x.Fault).WithMany(x => x.ShiftItems).HasForeignKey(x => x.FaultId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.Equipment).WithMany(x => x.ShiftItems).HasForeignKey(x => x.EquipmentId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.MaintenancePlan).WithMany(x => x.ShiftItems).HasForeignKey(x => x.MaintenancePlanId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ShiftAssignment>(entity =>
+        {
+            entity.HasIndex(x => new { x.UserId, x.ShiftDate }).IsUnique();
+            entity.HasIndex(x => x.ShiftDate);
+            entity.HasIndex(x => x.ShiftType);
+            entity.Property(x => x.ShiftType).HasConversion<string>().HasMaxLength(30);
+            entity.Property(x => x.Notes).HasMaxLength(300);
+            entity.HasOne(x => x.User).WithMany(x => x.ShiftAssignments).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.CreatedByUser).WithMany(x => x.CreatedShiftAssignments).HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<AuditLog>(entity =>

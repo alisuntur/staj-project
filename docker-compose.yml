@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: techops-postgres
+    environment:
+      POSTGRES_DB: techops_management
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - techops-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d techops_management"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    container_name: techops-api
+    build:
+      context: ./stajproject/back
+      dockerfile: TechOps.Api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=techops_management;Username=postgres;Password=postgres
+      Jwt__Issuer: TechOps.Api
+      Jwt__Audience: TechOps.Frontend
+      Jwt__Secret: docker-compose-local-secret-key-change-before-production-2026
+      Jwt__ExpiresInMinutes: 120
+      TechOps__ApplyMigrationsOnStartup: "true"
+    ports:
+      - "5162:8080"
+
+  frontend:
+    container_name: techops-frontend
+    build:
+      context: ./stajproject/front
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:5162
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+
+volumes:
+  techops-postgres-data:

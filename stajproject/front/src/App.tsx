@@ -32,27 +32,27 @@ type NotificationUnreadCount = {
   unreadCount: number
 }
 
-const navigationItems: { label: string; icon: string; view: ActiveView; roles?: string[] }[] = [
-  { label: 'Panel', icon: 'dashboard', view: 'dashboard' },
-  { label: 'Operasyonlar', icon: 'settings_suggest', view: 'faults' },
-  { label: 'Vardiya Devir Teslim', icon: 'sync_alt', view: 'shifts' },
-  { label: 'Bakım', icon: 'build', view: 'maintenance' },
-  { label: 'Testler', icon: 'biotech', view: 'tests' },
-  { label: 'Varlık Yönetimi', icon: 'inventory_2', view: 'equipment' },
-  { label: 'Raporlama', icon: 'assessment', view: 'reports', roles: ['Admin', 'Yönetici', 'Teknik Personel', 'Rapor Kullanıcısı'] },
-  { label: 'Bildirimler', icon: 'notifications', view: 'notifications' },
-  { label: 'Yönetim', icon: 'admin_panel_settings', view: 'users', roles: ['Admin'] },
+const navigationItems: { label: string; shortLabel: string; icon: string; view: ActiveView; roles?: string[] }[] = [
+  { label: 'Ana Kokpit', shortLabel: 'Kokpit', icon: 'space_dashboard', view: 'dashboard' },
+  { label: 'Arızalar', shortLabel: 'Arıza', icon: 'report', view: 'faults' },
+  { label: 'Vardiya', shortLabel: 'Vardiya', icon: 'swap_horiz', view: 'shifts' },
+  { label: 'Bakım', shortLabel: 'Bakım', icon: 'construction', view: 'maintenance' },
+  { label: 'Testler', shortLabel: 'Test', icon: 'science', view: 'tests' },
+  { label: 'Ekipman', shortLabel: 'Ekipman', icon: 'inventory_2', view: 'equipment' },
+  { label: 'Raporlar', shortLabel: 'Rapor', icon: 'query_stats', view: 'reports', roles: ['Admin', 'Yönetici', 'Teknik Personel', 'Rapor Kullanıcısı'] },
+  { label: 'Bildirimler', shortLabel: 'Bildirim', icon: 'notifications', view: 'notifications' },
+  { label: 'Kullanıcılar', shortLabel: 'Yönetim', icon: 'admin_panel_settings', view: 'users', roles: ['Admin'] },
 ]
 
-const demoFlow: ActiveView[] = ['dashboard', 'faults', 'equipment', 'shifts', 'reports', 'notifications', 'users']
+const guidedFlow: ActiveView[] = ['dashboard', 'faults', 'shifts', 'equipment', 'reports', 'notifications', 'users']
 
 const activeViewTitles: Record<ActiveView, string> = {
-  dashboard: 'Operasyon Özeti',
+  dashboard: 'Operasyon Kokpiti',
   faults: 'Arıza Yönetimi',
   maintenance: 'Bakım Yönetimi',
   tests: 'Periyodik Testler',
   shifts: 'Vardiya Devir Teslim',
-  equipment: 'Varlık Yönetimi',
+  equipment: 'Ekipman ve Varlıklar',
   reports: 'Yönetici Raporları',
   notifications: 'Bildirim ve Aktivite',
   users: 'Kullanıcı Yönetimi',
@@ -68,7 +68,7 @@ function App() {
   const [selectedShiftHandoverNo, setSelectedShiftHandoverNo] = useState<string | null>(null)
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
-  const [message, setMessage] = useState('Hazır. Admin bilgileriyle giriş yapın.')
+  const [message, setMessage] = useState('Girişe hazır.')
 
   useEffect(() => {
     if (!token) {
@@ -103,8 +103,9 @@ function App() {
     setMessage('Kimlik doğrulanıyor...')
 
     try {
-      const response = await apiRequest<LoginResponse>('/api/auth/login', {
+      const response = await requestJson<LoginResponse>(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ usernameOrEmail, password }),
       })
 
@@ -119,15 +120,6 @@ function App() {
     }
   }
 
-  async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-    const headers = new Headers(options.headers)
-    if (options.body && !headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json')
-    }
-
-    return requestJson<T>(`${API_BASE_URL}${path}`, { ...options, headers })
-  }
-
   function openFaultDetail(faultId: string) {
     setSelectedFaultId(faultId)
     setActiveView('faults')
@@ -138,20 +130,18 @@ function App() {
     setActiveView('shifts')
   }
 
-  function openNotifications() {
-    setSelectedFaultId(null)
-    setSelectedShiftHandoverNo(null)
-    setActiveView('notifications')
-  }
-
   function navigateTo(view: ActiveView) {
     setSelectedFaultId(null)
     setSelectedShiftHandoverNo(null)
     setActiveView(view)
   }
 
-  function handleNextDemoStep() {
-    const allowedFlow = demoFlow.filter((view) => navigationItems.some((item) => item.view === view && (!item.roles || (user && item.roles.includes(user.role)))))
+  function openNotifications() {
+    navigateTo('notifications')
+  }
+
+  function handleNextStep() {
+    const allowedFlow = guidedFlow.filter((view) => navigationItems.some((item) => item.view === view && (!item.roles || (user && item.roles.includes(user.role)))))
     const currentIndex = allowedFlow.indexOf(activeView)
     const nextView = allowedFlow[(currentIndex + 1) % allowedFlow.length] ?? 'dashboard'
     navigateTo(nextView)
@@ -163,52 +153,76 @@ function App() {
     setSelectedFaultId(null)
     setSelectedShiftHandoverNo(null)
     setActiveView('dashboard')
-    setMessage('Oturum kapatıldı. Yetkili hesapla yeniden giriş yapabilirsiniz.')
+    setMessage('Oturum kapatıldı. Yeniden giriş yapabilirsiniz.')
   }
 
   if (!token) {
     return (
-      <main className="min-h-screen bg-[#F3F5F8] text-[#1B1B1D]">
-        <div className="grid min-h-screen lg:grid-cols-[minmax(0,1.1fr)_520px]">
-          <section className="module-font flex min-h-[520px] flex-col justify-between bg-[#111827] p-8 text-white lg:p-12">
-            <div>
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded bg-[#3755C3]"><span className="material-symbols-outlined text-3xl">hub</span></div>
-                <div><p className="text-xl font-bold leading-tight">TechOps O&amp;M</p><p className="text-sm text-[#BEC6E0]">Operasyon ve Bakım Yönetim Sistemi</p></div>
+      <main className="min-h-screen bg-[#EEF2F7] text-[#0F172A]">
+        <div className="grid min-h-screen lg:grid-cols-[minmax(0,1fr)_480px]">
+          <section className="module-font relative overflow-hidden bg-[#0B1220] px-6 py-8 text-white sm:px-10 lg:px-14">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(59,130,246,0.30),transparent_32%),radial-gradient(circle_at_80%_20%,rgba(14,165,233,0.16),transparent_28%)]" />
+            <div className="relative flex min-h-full flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#2563EB] shadow-[0_14px_36px_rgba(37,99,235,0.35)]">
+                    <span className="material-symbols-outlined text-3xl">hub</span>
+                  </div>
+                  <div>
+                    <p className="text-xl font-extrabold tracking-tight">TechOps O&amp;M</p>
+                    <p className="text-sm text-[#C7D2FE]">Kurumsal Operasyon Merkezi</p>
+                  </div>
+                </div>
+
+                <div className="mt-16 max-w-3xl">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[#93C5FD]">Operasyon kokpiti</p>
+                  <h1 className="mt-4 text-4xl font-extrabold tracking-tight md:text-6xl">Vardiya, arıza, bakım ve raporlar tek sade ekranda.</h1>
+                  <p className="mt-5 max-w-2xl text-base leading-8 text-[#D8E2F2]">Giriş yapan kullanıcı önce kritik işleri görür; açık arızalar, vardiyadan kalanlar, bakım ve test durumu öncelik sırasına göre aşağı doğru akar.</p>
+                </div>
               </div>
-              <div className="mt-16 max-w-3xl">
-                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#93A4D4]">Kurumsal Operasyon Paneli</p>
-                <h1 className="mt-4 text-4xl font-bold tracking-tight md:text-6xl">Teknik operasyon, varlık ve raporlama süreçleri tek merkezde.</h1>
-                <p className="mt-5 max-w-2xl text-base leading-8 text-[#D1D5DB]">Arıza kayıtları, bakım planları, periyodik testler, vardiya devri, ekipman geçmişi ve yönetici raporları rol bazlı bir yönetim panelinde birleşir.</p>
+
+              <div className="mt-12 grid gap-4 md:grid-cols-3">
+                <LoginValueCard icon="priority_high" label="Öncelik Odaklı" text="Kritik arıza ve devreden iş en üstte görünür." />
+                <LoginValueCard icon="groups" label="Herkese Uygun" text="Operatör, teknik ekip ve yönetici aynı akışı kullanır." />
+                <LoginValueCard icon="summarize" label="Rapor Hazır" text="Her modül kendi Excel/PDF çıktısını üretir." />
               </div>
-            </div>
-            <div className="mt-12 grid gap-4 md:grid-cols-3">
-              <LoginValueCard icon="monitoring" label="Canlı KPI" text="Dashboard, kritik risk ve operasyon sağlığı" />
-              <LoginValueCard icon="assignment" label="Saha Akışı" text="Arıza, bakım, test ve vardiya kayıtları" />
-              <LoginValueCard icon="picture_as_pdf" label="Yönetici Çıktısı" text="Excel/PDF imzaya hazır raporlar" />
             </div>
           </section>
 
           <section className="flex items-center justify-center px-5 py-10 lg:px-10">
-            <div className="page-transition w-full max-w-md border border-[#C6C6CD] bg-white p-8 shadow-[0px_20px_45px_rgba(15,23,42,0.10)]">
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#45464D]">Güvenli erişim</p>
-              <h2 className="mt-2 text-3xl font-bold tracking-tight text-black">Yönetim paneline giriş</h2>
-              <p className="mt-3 text-sm leading-6 text-[#45464D]">Hazır admin hesabı üzerinden tüm operasyon yönetimi akışını görüntüleyin.</p>
+            <div className="w-full max-w-md rounded-[28px] border border-[#D7DEE8] bg-white p-7 shadow-[0_24px_70px_rgba(15,23,42,0.12)]">
+              <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#64748B]">Güvenli giriş</p>
+                <h2 className="mt-2 text-3xl font-extrabold tracking-tight text-[#0F172A]">Operasyon paneli</h2>
+                <p className="mt-2 text-sm leading-6 text-[#475569]">Sadeleştirilmiş kokpite erişmek için yetkili kullanıcı bilgileriyle giriş yapın.</p>
+              </div>
 
-              <label className="mt-7 block text-[11px] font-bold uppercase tracking-wide text-[#1B1B1D]">
+              <label className="mt-6 block text-[11px] font-bold uppercase tracking-wide text-[#334155]">
                 Kullanıcı adı veya e-posta
-                <input className="mt-2 h-10 w-full border border-[#C6C6CD] bg-white px-3 text-sm outline-none focus:border-2 focus:border-[#3755C3]" value={usernameOrEmail} onChange={(event) => setUsernameOrEmail(event.target.value)} />
+                <input className="mt-2 h-12 w-full rounded-xl border border-[#CBD5E1] bg-white px-4 text-sm outline-none transition focus:border-[#2563EB] focus:ring-4 focus:ring-[#DBEAFE]" value={usernameOrEmail} onChange={(event) => setUsernameOrEmail(event.target.value)} />
               </label>
-              <label className="mt-4 block text-[11px] font-bold uppercase tracking-wide text-[#1B1B1D]">
+              <label className="mt-4 block text-[11px] font-bold uppercase tracking-wide text-[#334155]">
                 Şifre
-                <input className="mt-2 h-10 w-full border border-[#C6C6CD] bg-white px-3 text-sm outline-none focus:border-2 focus:border-[#3755C3]" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+                <input className="mt-2 h-12 w-full rounded-xl border border-[#CBD5E1] bg-white px-4 text-sm outline-none transition focus:border-[#2563EB] focus:ring-4 focus:ring-[#DBEAFE]" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
               </label>
-              <button className="mt-6 flex h-11 w-full items-center justify-center gap-2 bg-black px-4 text-sm font-semibold text-white transition-colors hover:bg-[#131B2E] disabled:bg-[#76777D]" disabled={isLoading} type="button" onClick={handleLogin}>
+
+              <button className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0F172A] px-4 text-sm font-bold text-white transition hover:bg-[#1E293B] disabled:cursor-not-allowed disabled:bg-[#94A3B8]" disabled={isLoading} type="button" onClick={handleLogin}>
                 <span className="material-symbols-outlined text-lg">login</span>
-                Giriş Yap
+                Panele Giriş Yap
               </button>
+
               <div className="mt-5"><StatusMessage busy={isLoading} message={message} /></div>
-              <div className="mt-5 border border-[#DDE1FF] bg-[#F8FAFF] p-3 text-xs leading-5 text-[#45464D]"><strong className="text-black">Erişim bilgisi:</strong> <span className="font-mono">admin</span> / <span className="font-mono">Demo123!</span></div>
+
+              <div className="mt-5 rounded-2xl border border-[#BFDBFE] bg-[#EFF6FF] p-4 text-sm leading-6 text-[#1E3A8A]">
+                <p className="font-bold text-[#0F172A]">Hazır kurulum erişimi</p>
+                <p className="mt-1">Form yetkili yönetici hesabıyla önceden dolduruludur.</p>
+              </div>
+
+              <div className="mt-5 grid grid-cols-3 gap-2 text-center text-[11px] font-bold uppercase tracking-wide text-[#64748B]">
+                <span className="rounded-xl bg-[#F1F5F9] px-2 py-3">JWT</span>
+                <span className="rounded-xl bg-[#F1F5F9] px-2 py-3">Rol Yetki</span>
+                <span className="rounded-xl bg-[#F1F5F9] px-2 py-3">Docker</span>
+              </div>
             </div>
           </section>
         </div>
@@ -216,112 +230,77 @@ function App() {
     )
   }
 
+  const visibleNavigation = navigationItems.filter((item) => !item.roles || (user && item.roles.includes(user.role)))
+
   return (
-    <main className="min-h-screen bg-[#FCF8FA] text-[#1B1B1D]">
-      <aside className="fixed left-0 top-0 z-50 hidden h-full w-[260px] flex-col bg-black text-white shadow-sm lg:flex">
-        <BrandBlock />
-        <nav className="flex-1 overflow-y-auto py-4">
-          {navigationItems.filter((item) => !item.roles || (user && item.roles.includes(user.role))).map((item) => {
+    <main className="min-h-screen bg-[#F4F7FB] text-[#0F172A]">
+      <header className="sticky top-0 z-50 border-b border-[#D7DEE8] bg-white/95 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-[1680px] items-center justify-between gap-4 px-4 py-3 lg:px-8">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#0F172A] text-white">
+              <span className="material-symbols-outlined text-[24px]">hub</span>
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-base font-extrabold tracking-tight text-[#0F172A]">TechOps O&amp;M</p>
+              <p className="truncate text-xs font-semibold text-[#64748B]">{activeViewTitles[activeView]}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button className="hidden items-center gap-2 rounded-xl border border-[#CBD5E1] bg-white px-3 py-2 text-[13px] font-bold text-[#334155] transition hover:bg-[#F8FAFC] md:flex" type="button" onClick={handleNextStep}>
+              <span className="material-symbols-outlined text-[18px]">route</span>
+              Hızlı Gezin
+            </button>
+            <button className="relative flex h-10 items-center gap-2 rounded-xl border border-[#CBD5E1] bg-white px-3 text-[13px] font-bold text-[#334155] transition hover:bg-[#F8FAFC]" type="button" onClick={openNotifications}>
+              <span className="material-symbols-outlined text-[18px]">notifications</span>
+              <span className="hidden sm:inline">Bildirim</span>
+              {unreadNotificationCount > 0 ? <span className="absolute -right-2 -top-2 min-w-5 rounded-full bg-[#DC2626] px-1.5 py-0.5 text-center font-mono text-[11px] font-bold text-white">{unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}</span> : null}
+            </button>
+            <div className="hidden text-right text-xs md:block">
+              <p className="font-extrabold text-[#0F172A]">{user?.fullName}</p>
+              <p className="font-semibold text-[#64748B]">{user?.role}</p>
+            </div>
+            <button className="rounded-xl bg-[#0F172A] px-3 py-2 text-[13px] font-bold text-white transition hover:bg-[#1E293B]" type="button" onClick={handleLogout}>Çıkış</button>
+          </div>
+        </div>
+
+        <nav className="mx-auto flex max-w-[1680px] gap-2 overflow-x-auto px-4 pb-3 lg:px-8" aria-label="Ana navigasyon">
+          {visibleNavigation.map((item) => {
             const isActive = item.view === activeView
 
             return (
-              <button
-                key={item.label}
-                className={`flex w-full items-center gap-3 px-5 py-3 text-left text-sm transition-colors ${
-                  isActive
-                    ? 'border-l-4 border-[#3755C3] bg-[#3F465C] text-white'
-                    : 'text-[#7C839B] hover:bg-[#3F465C]/50 hover:text-white'
-                }`}
-                type="button"
-                onClick={() => {
-                  setSelectedFaultId(null)
-                  setSelectedShiftHandoverNo(null)
-                  setActiveView(item.view)
-                }}
-              >
-                <span className="material-symbols-outlined text-[22px]">{item.icon}</span>
-                <span>{item.label}</span>
+              <button className={`${isActive ? 'bg-[#0F172A] text-white shadow-[0_12px_30px_rgba(15,23,42,0.18)]' : 'bg-[#F1F5F9] text-[#475569] hover:bg-[#E2E8F0]'} flex shrink-0 items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold transition`} key={item.view} type="button" onClick={() => navigateTo(item.view)}>
+                <span className="material-symbols-outlined text-[19px]">{item.icon}</span>
+                <span className="hidden sm:inline">{item.label}</span>
+                <span className="sm:hidden">{item.shortLabel}</span>
               </button>
             )
           })}
         </nav>
-        <div className="border-t border-[#3F465C] p-4 text-xs text-[#7C839B]"><p>TechOps O&amp;M • Kurumsal Operasyon</p></div>
-      </aside>
+      </header>
 
-      <div className="pb-24 lg:ml-[260px] lg:pb-0">
-        <header className="sticky top-0 z-40 flex items-center justify-between border-b border-[#C6C6CD] bg-[#FCF8FA] px-5 py-3 lg:px-6">
-          <div className="flex items-center gap-4">
-            <span className="text-lg font-bold text-black">O&amp;M Yönetimi</span>
-            <div className="hidden border-l border-[#C6C6CD] pl-4 text-sm text-[#45464D] md:block"><span className="font-semibold text-black">{activeViewTitles[activeView]}</span><span className="mx-2">/</span><span>Operasyon verisi aktif</span></div>
-          </div>
-          <div className="flex items-center gap-3">
-            <button className="hidden items-center gap-2 bg-black px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[#131B2E] md:flex" type="button" onClick={handleNextDemoStep}>
-              <span className="material-symbols-outlined text-[18px]">slideshow</span>
-              Sonraki Akış Adımı
-            </button>
-            <button className={`${activeView === 'notifications' ? 'border-[#3755C3] bg-[#DDE1FF] text-[#3755C3]' : 'border-[#C6C6CD] bg-white text-[#45464D] hover:bg-[#F6F3F5]'} relative flex h-9 items-center gap-2 border px-3 text-[13px] font-semibold transition-colors`} type="button" onClick={openNotifications}>
-              <span className="material-symbols-outlined text-[18px]">notifications</span>
-              <span className="hidden md:inline">Bildirimler</span>
-              {unreadNotificationCount > 0 ? <span className="absolute -right-2 -top-2 min-w-5 rounded-full bg-[#BA1A1A] px-1.5 py-0.5 text-center font-mono text-[11px] font-bold text-white">{unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}</span> : null}
-            </button>
-            <div className="hidden text-right text-xs md:block"><p className="font-semibold text-black">{user?.fullName}</p><p className="text-[#45464D]">{user?.role}</p></div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#131B2E] text-white"><span className="material-symbols-outlined text-[18px]">person</span></div>
-            <button className="hidden border border-[#C6C6CD] bg-white px-3 py-2 text-[13px] font-semibold text-[#45464D] transition-colors hover:bg-[#F6F3F5] sm:block" type="button" onClick={handleLogout}>Çıkış</button>
-          </div>
-        </header>
-
-        <div key={activeView} className="page-transition">
-          {activeView === 'dashboard' ? <DashboardView apiBaseUrl={API_BASE_URL} token={token} onOpenFault={openFaultDetail} onOpenShift={openShiftDetail} /> : null}
-          {activeView === 'faults' ? <FaultsView apiBaseUrl={API_BASE_URL} selectedFaultId={selectedFaultId} token={token} user={user} /> : null}
-          {activeView === 'maintenance' ? <MaintenanceView apiBaseUrl={API_BASE_URL} token={token} /> : null}
-          {activeView === 'tests' ? <TestsView apiBaseUrl={API_BASE_URL} token={token} /> : null}
-          {activeView === 'shifts' ? <ShiftsView apiBaseUrl={API_BASE_URL} selectedHandoverNo={selectedShiftHandoverNo} token={token} /> : null}
-          {activeView === 'equipment' ? <EquipmentView apiBaseUrl={API_BASE_URL} token={token} /> : null}
-          {activeView === 'reports' ? <ReportsView apiBaseUrl={API_BASE_URL} token={token} /> : null}
-          {activeView === 'notifications' ? <NotificationsView apiBaseUrl={API_BASE_URL} token={token} user={user} onUnreadCountChange={setUnreadNotificationCount} /> : null}
-          {activeView === 'users' ? <UserManagementView apiBaseUrl={API_BASE_URL} token={token} /> : null}
-        </div>
+      <div key={activeView} className="page-transition">
+        {activeView === 'dashboard' ? <DashboardView apiBaseUrl={API_BASE_URL} token={token} user={user} onOpenFault={openFaultDetail} onOpenShift={openShiftDetail} /> : null}
+        {activeView === 'faults' ? <FaultsView apiBaseUrl={API_BASE_URL} selectedFaultId={selectedFaultId} token={token} user={user} /> : null}
+        {activeView === 'maintenance' ? <MaintenanceView apiBaseUrl={API_BASE_URL} token={token} /> : null}
+        {activeView === 'tests' ? <TestsView apiBaseUrl={API_BASE_URL} token={token} /> : null}
+        {activeView === 'shifts' ? <ShiftsView apiBaseUrl={API_BASE_URL} selectedHandoverNo={selectedShiftHandoverNo} token={token} user={user} /> : null}
+        {activeView === 'equipment' ? <EquipmentView apiBaseUrl={API_BASE_URL} token={token} /> : null}
+        {activeView === 'reports' ? <ReportsView apiBaseUrl={API_BASE_URL} token={token} /> : null}
+        {activeView === 'notifications' ? <NotificationsView apiBaseUrl={API_BASE_URL} token={token} user={user} onUnreadCountChange={setUnreadNotificationCount} /> : null}
+        {activeView === 'users' ? <UserManagementView apiBaseUrl={API_BASE_URL} token={token} /> : null}
       </div>
-      <MobileNavigation activeView={activeView} user={user} onNavigate={(view) => {
-        navigateTo(view)
-      }} />
     </main>
   )
 }
 
 function LoginValueCard({ icon, label, text }: { icon: string; label: string; text: string }) {
-  return <div className="border border-white/15 bg-white/5 p-4"><span className="material-symbols-outlined text-[#DBEAFE]">{icon}</span><p className="mt-3 text-sm font-bold text-white">{label}</p><p className="mt-1 text-xs leading-5 text-[#D1D5DB]">{text}</p></div>
-}
-
-function BrandBlock() {
   return (
-    <div className="border-b border-[#1F2937] p-6">
-      <div className="flex items-center gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded bg-[#3755C3] text-white"><span className="material-symbols-outlined text-3xl">hub</span></div>
-        <div><h1 className="text-2xl font-bold leading-tight tracking-tight">O&amp;M<br />Otomasyon</h1><p className="mt-1 text-sm text-[#7C839B]">Yönetim Paneli</p></div>
-      </div>
+    <div className="rounded-2xl border border-white/15 bg-white/10 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur">
+      <span className="material-symbols-outlined text-[#BFDBFE]">{icon}</span>
+      <p className="mt-3 text-sm font-extrabold text-white">{label}</p>
+      <p className="mt-1 text-xs leading-5 text-[#D8E2F2]">{text}</p>
     </div>
-  )
-}
-
-function MobileNavigation({ activeView, onNavigate, user }: { activeView: ActiveView; onNavigate: (view: ActiveView) => void; user: AuthUser | null }) {
-  const visibleItems = navigationItems.filter((item) => !item.roles || (user && item.roles.includes(user.role)))
-
-  return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-[#C6C6CD] bg-white/95 px-2 py-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur lg:hidden" aria-label="Mobil menü">
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {visibleItems.map((item) => {
-          const isActive = item.view === activeView
-
-          return (
-            <button className={`${isActive ? 'bg-black text-white' : 'bg-[#F6F3F5] text-[#45464D]'} flex min-w-[84px] flex-col items-center justify-center gap-1 rounded px-3 py-2 text-[11px] font-semibold`} key={item.view} type="button" onClick={() => onNavigate(item.view)}>
-              <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-              <span className="whitespace-nowrap">{item.label}</span>
-            </button>
-          )
-        })}
-      </div>
-    </nav>
   )
 }
 

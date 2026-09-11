@@ -30,6 +30,8 @@ Proje ASP.NET Core Web API, PostgreSQL, Entity Framework Core, React, TypeScript
 | Frontend | React, TypeScript, Vite |
 | Stil | Tailwind CSS, Material Symbols, kurumsal koyu/açık panel dili |
 | Rapor | ClosedXML, QuestPDF |
+| Container | Docker, Docker Compose, nginx |
+| Test | ASP.NET Core WebApplicationFactory integration tests |
 | Lint | oxlint |
 
 ## Mimari
@@ -40,12 +42,25 @@ flowchart LR
   F --> A[apiClient + JWT Header]
   A --> B[ASP.NET Core Web API]
   B --> C[Role-based Controllers]
+  C --> S[Application Services]
+  S --> AUTH[AuthService + TokenService]
+  S --> REP[ExecutiveReportService]
   C --> D[EF Core AppDbContext]
   D --> E[(PostgreSQL)]
-  C --> R[ExecutiveReportService]
-  R --> X[Excel - ClosedXML]
-  R --> P[PDF - QuestPDF]
+  REP --> X[Excel - ClosedXML]
+  REP --> P[PDF - QuestPDF]
 ```
+
+Mimari ayrım portföyde özellikle gösterilecek şekilde düzenlenmiştir:
+
+| Katman | Sorumluluk |
+|---|---|
+| Controllers | HTTP request/response, model binding, role authorization, status code üretimi |
+| Services | Kimlik doğrulama akışı, JWT üretimi, şifre doğrulama, Excel/PDF rapor üretimi |
+| Data | EF Core ilişki konfigürasyonu, indexler, delete behavior, seed data ve migration geçmişi |
+| Models/DTO | API response/request kontratları ve rapor doküman modelleri |
+
+EF Core tarafında `AppDbContext`; kullanıcı-rol, lokasyon-ekipman, ekipman-arıza, bakım, test, vardiya ve audit/bildirim ilişkilerini explicit foreign key ve delete behavior ayarlarıyla tanımlar. Bu yapı Swagger, migration dosyaları ve integration testler üzerinden gösterilebilir.
 
 ## Hızlı Başlatma
 
@@ -61,6 +76,56 @@ Projeyi kapatmak için:
 
 ```powershell
 stajproject\projeyi-kapat.bat
+```
+
+## Docker İle Çalıştırma
+
+Docker gereksinimi olan ilanlar için proje full-stack compose dosyasıyla gelir:
+
+Windows batch ile başlatmak için:
+
+```powershell
+stajproject\docker-ac.bat
+```
+
+Manuel Docker Compose komutu:
+
+```powershell
+docker compose up --build
+```
+
+Compose ile başlayan servisler:
+
+| Servis | Container | Host URL/Port |
+|---|---|---|
+| Frontend | `techops-frontend` | `http://localhost:5173` |
+| API | `techops-api` | `http://localhost:5162` |
+| PostgreSQL | `techops-postgres` | `localhost:5433` |
+
+Backend container `TechOps__ApplyMigrationsOnStartup=true` ile başlar; PostgreSQL hazır olduğunda EF Core migration'ları uygular ve seed veriyi oluşturur.
+
+Kapatmak için:
+
+```powershell
+stajproject\docker-kapat.bat
+```
+
+Manuel komut:
+
+```powershell
+docker compose down
+```
+
+Veri volume'unu da sıfırlamak için:
+
+```powershell
+docker compose down -v
+```
+
+Windows batch ile volume dahil sıfırlamak için:
+
+```powershell
+stajproject\docker-kapat.bat -v
 ```
 
 ## İlk Kurulum
@@ -123,7 +188,7 @@ Demo kullanıcılar seed data üzerinden oluşturulur. `appsettings.json` içind
 7. Bildirim ve aktivite merkezinde izlenebilirlik/audit log değerini göster.
 8. Kullanıcı yönetiminde rol bazlı erişim ve kullanıcı iş yükünü göster.
 
-Uygulama içinde üst bardaki `Sonraki Demo Adımı` butonu bu akışı hızlıca gezmek için eklenmiştir.
+Uygulama içinde üst bardaki `Sonraki Akış Adımı` butonu bu akışı hızlıca gezmek için eklenmiştir.
 
 ## LinkedIn ve Portföy Vitrini
 
@@ -162,6 +227,21 @@ Pending migration kontrolü:
 dotnet ef migrations has-pending-model-changes --no-build
 ```
 
+Integration testler:
+
+```powershell
+cd stajproject\back
+dotnet test "TechOpsManagementSystem.sln" -p:UseAppHost=false
+```
+
+Test kapsamı:
+
+| Test | Gösterdiği Yetkinlik |
+|---|---|
+| Login integration | Gerçek HTTP pipeline, seed kullanıcı, JWT üretimi |
+| Admin authorization | Anonymous `401`, non-admin role `403` doğrulaması |
+| Export integration | Modül bazlı Excel endpointleri ve dosya adları |
+
 Frontend build ve lint:
 
 ```powershell
@@ -172,15 +252,21 @@ npm run lint
 
 ## Kalite Durumu
 
-Son doğrulamalarda backend build, frontend build, frontend lint, API health/login smoke ve Excel/PDF export smoke kontrolleri başarılı çalıştırılmıştır.
+Son doğrulamalarda backend build, frontend build, frontend lint, integration test, API health/login smoke ve Excel/PDF export smoke kontrolleri başarılı çalıştırılmıştır.
 
 ## Proje Yapısı
 
 ```text
 stajproject/
+  docker-compose.yml
   projeyi-ac.bat
+  projeyi-kapat.bat
+  docker-ac.bat
+  docker-kapat.bat
   back/
+    TechOpsManagementSystem.sln
     TechOps.Api/
+      Dockerfile
       Controllers/
       Data/
       Entities/
@@ -189,7 +275,10 @@ stajproject/
       Models/
       Security/
       Services/
+    TechOps.Api.IntegrationTests/
   front/
+    Dockerfile
+    nginx.conf
     src/
       App.tsx
       DashboardView.tsx
