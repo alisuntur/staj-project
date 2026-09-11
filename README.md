@@ -294,6 +294,3 @@ stajproject/
       UiState.tsx
 ```
 
-## Notlar
-
-`Planlama/` klasörü sürüm kontrolüne dahil edilmemiştir. `node_modules`, `dist`, `bin`, `obj` ve geçici test çıktıları `.gitignore` ile hariç tutulmuştur.
